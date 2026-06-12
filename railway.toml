@@ -1,5 +1,5 @@
 [build]
-builder = "NIXPACKS"
+builder = "RAILPACK"
 buildCommand = "dotnet restore TodoList/TodoList.csproj && dotnet publish TodoList/TodoList.csproj -c Release -o out"
 
 [deploy]

@@ -1,7 +1,0 @@
-[build]
-builder = "NIXPACKS"
-buildCommand = "dotnet restore TodoList/TodoList.csproj && dotnet publish TodoList/TodoList.csproj -c Release -o out"
-
-[deploy]
-startCommand = "dotnet out/TodoList.dll"
-restartPolicyType = "ON_FAILURE"
