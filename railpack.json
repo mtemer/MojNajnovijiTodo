@@ -1,7 +1,17 @@
 {
   "$schema": "https://railpack.com",
   "provider": "dotnet",
+  "packages": {
+    "dotnet": "10.0"
+  },
   "build": {
-    "project": "TodoList/TodoList.csproj"
+    "steps": [
+      "mkdir -p /root/.nuget/packages",
+      "dotnet restore TodoList/TodoList.csproj",
+      "dotnet publish TodoList/TodoList.csproj -c Release -o out"
+    ]
+  },
+  "deploy": {
+    "start": "dotnet out/TodoList.dll"
   }
 }
