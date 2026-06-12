@@ -1,17 +1,21 @@
-﻿FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+﻿# 1. SDK faza za build i objavu
+FROM ://microsoft.com AS build
 WORKDIR /src
 
+# Kopiraj sve datoteke i obnovi pakete
 COPY . .
+RUN dotnet restore "TodoList/TodoList.csproj"
 
-RUN dotnet publish -c Release -o /app/publish
+# Prevedi klijentski i serverski dio zajedno
+RUN dotnet publish "TodoList/TodoList.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0
+# 2. Runtime faza za pokretanje aplikacije
+FROM ://microsoft.com AS final
 WORKDIR /app
-
 COPY --from=build /app/publish .
 
-ENV ASPNETCORE_URLS=http://+:10000
-
-EXPOSE 10000
+# Railway dinamički dodjeljuje PORT, pa slušamo na svim adresama
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "TodoList.dll"]

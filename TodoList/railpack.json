@@ -1,0 +1,9 @@
+{
+  "$schema": "https://railpack.com",
+  "provider": "dotnet",
+  "outputs": [
+    {
+      "path": "TodoList/out"
+    }
+  ]
+}
