@@ -1,0 +1,75 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<TodoDbContext> DbFactory
+
+<h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
+
+<ul>
+    @foreach (var todo in todos)
+    {
+        <li style="margin-bottom: 8px; list-style-type: none;">
+            <span style="@(todo.IsDone ? "text-decoration: line-through; color: gray;" : "")">
+                @todo.Title
+            </span>
+
+            <!-- 2. GUMB ZA BRISANJE -->
+            <button @onclick="() => DeleteTodo(todo)" style="margin-left: 15px; color: red;">
+                Briši
+            </button>
+        </li>
+    }
+
+</ul>
+
+<input placeholder="Something todo" @bind="newTodo" />
+<button @onclick="AddTodo">Add todo</button>
+
+@code {
+    private List<TodoItem> todos = [];
+    private string? newTodo;
+
+    // Učitavanje podataka iz SQLite baze čim se stranica otvori
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        todos = await context.Todos.ToListAsync();
+    }
+
+    // Dodavanje novog zadatka u bazu
+    private async Task AddTodo()
+    {
+        if (!string.IsNullOrWhiteSpace(newTodo))
+        {
+            var newItem = new TodoItem { Title = newTodo, IsDone = false };
+
+            using var context = DbFactory.CreateDbContext();
+            context.Todos.Add(newItem);
+            await context.SaveChangesAsync();
+
+            todos.Add(newItem); // Ažuriranje sučelja
+            newTodo = string.Empty;
+        }
+    }
+
+    // Promjena statusa (Dovršeno / Aktivno) u bazi
+    private async Task ToggleDone(TodoItem todo, ChangeEventArgs e)
+    {
+        todo.IsDone = (bool)(e.Value ?? false);
+
+        using var context = DbFactory.CreateDbContext();
+        context.Todos.Update(todo);
+        await context.SaveChangesAsync();
+    }
+
+    // Brisanje iz baze
+    private async Task DeleteTodo(TodoItem todoToRemove)
+    {
+        using var context = DbFactory.CreateDbContext();
+        context.Todos.Remove(todoToRemove);
+        await context.SaveChangesAsync();
+
+        todos.Remove(todoToRemove); // Ažuriranje sučelja
+    }
+
+}
