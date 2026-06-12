@@ -5,13 +5,6 @@
     "dotnet": "10.0"
   },
   "build": {
-    "steps": [
-      "mkdir -p /root/.nuget/packages",
-      "dotnet restore TodoList/TodoList.csproj",
-      "dotnet publish TodoList/TodoList.csproj -c Release -o out"
-    ]
-  },
-  "deploy": {
-    "start": "dotnet out/TodoList.dll"
+    "project": "TodoList/TodoList.csproj"
   }
 }
