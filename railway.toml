@@ -2,6 +2,9 @@
 builder = "RAILPACK"
 buildCommand = "dotnet restore TodoList/TodoList.csproj && dotnet publish TodoList/TodoList.csproj -c Release -o out"
 
+[build.environment]
+RAILPACK_INSTALL_CMD = "dotnet restore TodoList/TodoList.csproj"
+
 [deploy]
 startCommand = "dotnet out/TodoList.dll"
 restartPolicyType = "ON_FAILURE"
