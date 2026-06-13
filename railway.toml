@@ -1,7 +1,7 @@
 [build]
 builder = "RAILPACK"
-installCommand = "dotnet restore TodoList/TodoList.csproj"
-buildCommand = "dotnet publish TodoList/TodoList.csproj -c Release -o out --no-restore"
+installCommand = "true"
+buildCommand = "dotnet restore TodoList/TodoList.csproj && dotnet publish TodoList/TodoList.csproj -c Release -o out"
 
 [deploy]
 startCommand = "dotnet out/TodoList.dll"
