@@ -10,7 +10,7 @@ builder.Services.AddRazorComponents()
 
 // 2. Registracija SQLite baze podataka na novu trajnu Railway lokaciju (/app/data/)
 builder.Services.AddDbContextFactory<TodoDbContext>(options =>
-    options.UseSqlite("Data Source=/app/data/todo.db"));
+    options.UseSqlite("Data Source=/data/todo.db"));
 
 var app = builder.Build();
 
@@ -41,7 +41,7 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<TodoDbContext>();
 
     // Osiguravamo da /app/data mapa postoji na Linuxu prije nego SQLite pokuša kreirati datoteku
-    var dbFolder = Path.GetDirectoryName("/app/data/todo.db");
+    var dbFolder = Path.GetDirectoryName("/data/todo.db");
     if (!string.IsNullOrEmpty(dbFolder))
     {
         Directory.CreateDirectory(dbFolder);
