@@ -1,22 +1,20 @@
-﻿# Stage 1: Build and Publish
-FROM ://microsoft.com AS build
+﻿# 1. Faza za prevođenje (SDK) - KORISTI ISPRAVNU PUTANJU ZA .NET 10 SDK
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Copy everything into the build context to preserve subdirectories
+# Kopiraj sve datoteke u kontejner kako bi sačuvao strukturu mapa
 COPY . .
 
-# Run restore directly against the nested server project
+# Obnovi pakete i napravi publish za glavni projekt u podfolderu
 RUN dotnet restore "TodoList/TodoList.csproj"
-
-# Build and publish both projects cleanly into an output directory
 RUN dotnet publish "TodoList/TodoList.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-# Stage 2: Runtime Image
-FROM ://microsoft.com AS final
+# 2. Faza za pokretanje (Runtime) - KORISTI ISPRAVNU PUTANJU ZA .NET 10 RUNTIME
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# Railway routes traffic dynamically, listening on all interfaces at port 8080
+# Postavljanje portova koje Railway dinamički presreće
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
