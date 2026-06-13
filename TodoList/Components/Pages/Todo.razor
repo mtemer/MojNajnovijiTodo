@@ -8,26 +8,41 @@
 <ul>
     @foreach (var todo in todos)
     {
-        <li style="margin-bottom: 8px; list-style-type: none;">
+        <li style="margin-bottom: 8px; list-style-type: none; display: flex; align-items: center;">
+            <!-- Dodan checkbox koji aktivira ToggleDone promjenu u bazi -->
+            <input type="checkbox" checked="@todo.IsDone" @onchange="(e) => ToggleDone(todo, e)" style="margin-right: 10px;" />
+
             <span style="@(todo.IsDone ? "text-decoration: line-through; color: gray;" : "")">
                 @todo.Title
             </span>
 
-            <!-- 2. GUMB ZA BRISANJE -->
+            <!-- Prikaz datuma ako je postavljen -->
+            @if (todo.DueDate.HasValue)
+            {
+                <span style="margin-left: 10px; font-size: 0.85em; color: #666; background-color: #f0f0f0; padding: 2px 6px; border-radius: 4px;">
+                    📅 @todo.DueDate.Value.ToString("dd.MM.yyyy.")
+                </span>
+            }
+
+            <!-- GUMB ZA BRISANJE -->
             <button @onclick="() => DeleteTodo(todo)" style="margin-left: 15px; color: red;">
                 Briši
             </button>
         </li>
     }
-
 </ul>
 
+<!-- Input polja za novi zadatak i datum -->
 <input placeholder="Something todo" @bind="newTodo" />
-<button @onclick="AddTodo">Add todo</button>
+<input type="date" @bind="newTodoDueDate" style="margin-left: 5px;" />
+<button @onclick="AddTodo" style="margin-left: 5px;">Add todo</button>
 
 @code {
     private List<TodoItem> todos = [];
     private string? newTodo;
+
+    // Nova varijabla za povezivanje s input poljem za datum
+    private DateTime? newTodoDueDate;
 
     // Učitavanje podataka iz SQLite baze čim se stranica otvori
     protected override async Task OnInitializedAsync()
@@ -41,7 +56,8 @@
     {
         if (!string.IsNullOrWhiteSpace(newTodo))
         {
-            var newItem = new TodoItem { Title = newTodo, IsDone = false };
+            // Dodano polje DueDate prilikom kreiranja objekta
+            var newItem = new TodoItem { Title = newTodo, IsDone = false, DueDate = newTodoDueDate };
 
             using var context = DbFactory.CreateDbContext();
             context.Todos.Add(newItem);
@@ -49,6 +65,7 @@
 
             todos.Add(newItem); // Ažuriranje sučelja
             newTodo = string.Empty;
+            newTodoDueDate = null; // Resetiranje polja za datum nakon unosa
         }
     }
 
@@ -71,5 +88,5 @@
 
         todos.Remove(todoToRemove); // Ažuriranje sučelja
     }
-
 }
+
