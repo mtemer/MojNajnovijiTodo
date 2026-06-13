@@ -3,17 +3,14 @@ using TodoList.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// 1. Dodavanje servisa kontejneru (Očišćeno od duplog koda)
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents();
 
-// Registracija SQLite baze podataka (kreirat će datoteku todo.db u projektu)
+// 2. Registracija SQLite baze podataka na novu trajnu Railway lokaciju (/app/data/)
 builder.Services.AddDbContextFactory<TodoDbContext>(options =>
-    options.UseSqlite("Data Source=todo.db"));
-
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    options.UseSqlite("Data Source=/app/data/todo.db"));
 
 var app = builder.Build();
 
@@ -25,24 +22,31 @@ if (app.Environment.IsDevelopment())
 else
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
+
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
-
 app.UseAntiforgery();
-
 app.MapStaticAssets();
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
     .AddInteractiveWebAssemblyRenderMode()
     .AddAdditionalAssemblies(typeof(TodoList.Client._Imports).Assembly);
 
-// Automatsko kreiranje baze prilikom pokretanja
+// 3. Automatsko kreiranje mape i baze podataka prilikom pokretanja na Linuxu
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<TodoDbContext>();
+
+    // Osiguravamo da /app/data mapa postoji na Linuxu prije nego SQLite pokuša kreirati datoteku
+    var dbFolder = Path.GetDirectoryName("/app/data/todo.db");
+    if (!string.IsNullOrEmpty(dbFolder))
+    {
+        Directory.CreateDirectory(dbFolder);
+    }
+
     dbContext.Database.EnsureCreated();
 }
 
