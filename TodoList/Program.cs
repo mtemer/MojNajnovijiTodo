@@ -35,19 +35,19 @@ app.MapRazorComponents<App>()
     .AddInteractiveWebAssemblyRenderMode()
     .AddAdditionalAssemblies(typeof(TodoList.Client._Imports).Assembly);
 
-// 3. Automatsko kreiranje mape i baze podataka prilikom pokretanja na Linuxu
+// 3. Automatsko pokretanje migracija i kreiranje baze na Linuxu
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<TodoDbContext>();
 
-    // Osiguravamo da /app/data mapa postoji na Linuxu prije nego SQLite pokuša kreirati datoteku
     var dbFolder = Path.GetDirectoryName("/data/todo.db");
     if (!string.IsNullOrEmpty(dbFolder))
     {
         Directory.CreateDirectory(dbFolder);
     }
 
-    dbContext.Database.EnsureCreated();
+    // Zamijenjeno: EnsureCreated() -> Migrate()
+    dbContext.Database.Migrate();
 }
 
 app.Run();
