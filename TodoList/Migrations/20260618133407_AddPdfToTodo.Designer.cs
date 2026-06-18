@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -9,9 +10,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace TodoList.Migrations
 {
     [DbContext(typeof(TodoDbContext))]
-    partial class TodoDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260618133407_AddPdfToTodo")]
+    partial class AddPdfToTodo
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
@@ -27,12 +30,6 @@ namespace TodoList.Migrations
 
                     b.Property<bool>("IsDone")
                         .HasColumnType("INTEGER");
-
-                    b.Property<byte[]>("PdfContent")
-                        .HasColumnType("BLOB");
-
-                    b.Property<string>("PdfFileName")
-                        .HasColumnType("TEXT");
 
                     b.Property<string>("Sifra")
                         .HasColumnType("TEXT");

@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<TodoDbContext> DbFactory
+@inject IJSRuntime JS
 
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
 
@@ -16,6 +17,11 @@
                 @todo.Title
             </span>
 
+            <!-- Prikaz šifre -->
+                <span style="margin-left: 10px; font-size: 0.85em; color: #666; background-color: #f0f0f0; padding: 2px 6px; border-radius: 4px;">
+                    @todo.Sifra
+                </span>
+
             <!-- Prikaz datuma ako je postavljen -->
             @if (todo.DueDate.HasValue)
             {
@@ -24,7 +30,14 @@
                 </span>
             }
 
-            <!-- GUMB ZA BRISANJE -->
+            <!-- PRIKAZ I PREUZIMANJE PDF-A -->
+            @if (todo.PdfContent != null)
+            {
+                <button @onclick="() => DownloadPdf(todo)" style="margin-left: 10px; background-color: #4CAF50; color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer;">
+                    📄 Preuzmi PDF
+                </button>
+            }
+
             <button @onclick="() => DeleteTodo(todo)" style="margin-left: 15px; color: red;">
                 Briši
             </button>
@@ -33,43 +46,88 @@
 </ul>
 
 <!-- Input polja za novi zadatak i datum -->
-<input placeholder="Something todo" @bind="newTodo" />
+<input placeholder="Upis Šifre" @bind="newSifra" />
+<input placeholder="Upis #Dokumenta" @bind="newTodo" />
 <input type="date" @bind="newTodoDueDate" style="margin-left: 5px;" />
-<button @onclick="AddTodo" style="margin-left: 5px;">Add todo</button>
+<button @onclick="AddTodo" style="margin-left: 5px; background-color: #FFDE21;">Add todo</button>
 
 @code {
     private List<TodoItem> todos = [];
     private string? newTodo;
-
-    // Nova varijabla za povezivanje s input poljem za datum
+    private string? newSifra;
     private DateTime? newTodoDueDate;
 
-    // Učitavanje podataka iz SQLite baze čim se stranica otvori
+    // Privremene varijable za učitani PDF
+    private byte[]? uploadedPdfContent;
+    private string? uploadedPdfFileName;
+
     protected override async Task OnInitializedAsync()
     {
         using var context = DbFactory.CreateDbContext();
         todos = await context.Todos.ToListAsync();
     }
 
-    // Dodavanje novog zadatka u bazu
+    // Obrada odabrane datoteke iz <InputFile> komponente
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null && file.ContentType == "application/pdf")
+        {
+            // Postavite maksimalnu dozvoljenu veličinu (npr. 5 MB = 5 * 1024 * 1024)
+            long maxFileSize = 5242880;
+
+            using var stream = file.OpenReadStream(maxFileSize);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+
+            uploadedPdfContent = memoryStream.ToArray();
+            uploadedPdfFileName = file.Name;
+        }
+    }
+
     private async Task AddTodo()
     {
         if (!string.IsNullOrWhiteSpace(newTodo))
         {
-            // Dodano polje DueDate prilikom kreiranja objekta
-            var newItem = new TodoItem { Title = newTodo, IsDone = false, DueDate = newTodoDueDate };
+            // Dodana PDF polja prilikom kreiranja objekta
+            var newItem = new TodoItem
+            {
+                Title = newTodo,
+                IsDone = false,
+                DueDate = newTodoDueDate,
+                Sifra = newSifra,
+                PdfContent = uploadedPdfContent,
+                PdfFileName = uploadedPdfFileName
+            };
 
             using var context = DbFactory.CreateDbContext();
             context.Todos.Add(newItem);
             await context.SaveChangesAsync();
 
-            todos.Add(newItem); // Ažuriranje sučelja
+            todos.Add(newItem);
+
+            // Resetiranje polja
             newTodo = string.Empty;
-            newTodoDueDate = null; // Resetiranje polja za datum nakon unosa
+            newSifra = string.Empty;
+            newTodoDueDate = null;
+            uploadedPdfContent = null;
+            uploadedPdfFileName = null;
         }
     }
 
-    // Promjena statusa (Dovršeno / Aktivno) u bazi
+    // Preuzimanje PDF dokumenta iz baze pomoću JavaScripta
+    private async Task DownloadPdf(TodoItem todo)
+    {
+        if (todo.PdfContent != null && !string.IsNullOrEmpty(todo.PdfFileName))
+        {
+            var base64 = Convert.ToBase64String(todo.PdfContent);
+            var fileDataUrl = $"data:application/pdf;base64,{base64}";
+
+            // Poziv JavaScript funkcije za pokretanje preuzimanja u pregledniku
+            await JS.InvokeVoidAsync("open", fileDataUrl, "_blank");
+        }
+    }
+
     private async Task ToggleDone(TodoItem todo, ChangeEventArgs e)
     {
         todo.IsDone = (bool)(e.Value ?? false);
@@ -79,14 +137,12 @@
         await context.SaveChangesAsync();
     }
 
-    // Brisanje iz baze
     private async Task DeleteTodo(TodoItem todoToRemove)
     {
         using var context = DbFactory.CreateDbContext();
         context.Todos.Remove(todoToRemove);
         await context.SaveChangesAsync();
 
-        todos.Remove(todoToRemove); // Ažuriranje sučelja
+        todos.Remove(todoToRemove);
     }
 }
-
