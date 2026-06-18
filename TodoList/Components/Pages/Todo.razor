@@ -10,19 +10,16 @@
     @foreach (var todo in todos)
     {
         <li style="margin-bottom: 8px; list-style-type: none; display: flex; align-items: center;">
-            <!-- Dodan checkbox koji aktivira ToggleDone promjenu u bazi -->
             <input type="checkbox" checked="@todo.IsDone" @onchange="(e) => ToggleDone(todo, e)" style="margin-right: 10px;" />
 
             <span style="@(todo.IsDone ? "text-decoration: line-through; color: gray;" : "")">
                 @todo.Title
             </span>
 
-            <!-- Prikaz šifre -->
-                <span style="margin-left: 10px; font-size: 0.85em; color: #666; background-color: #f0f0f0; padding: 2px 6px; border-radius: 4px;">
-                    @todo.Sifra
-                </span>
+            <span style="margin-left: 10px; font-size: 0.85em; color: #666; background-color: #f0f0f0; padding: 2px 6px; border-radius: 4px;">
+                @todo.Sifra
+            </span>
 
-            <!-- Prikaz datuma ako je postavljen -->
             @if (todo.DueDate.HasValue)
             {
                 <span style="margin-left: 10px; font-size: 0.85em; color: #666; background-color: #f0f0f0; padding: 2px 6px; border-radius: 4px;">
@@ -33,8 +30,8 @@
             <!-- PRIKAZ I PREUZIMANJE PDF-A -->
             @if (todo.PdfContent != null)
             {
-                <button @onclick="() => DownloadPdf(todo)" style="margin-left: 10px; background-color: #4CAF50; color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer;">
-                    📄 Preuzmi PDF
+                <button @onclick="() => ViewPdf(todo)" style="margin-left: 10px; background-color: #4CAF50; color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer;">
+                    👁️ Prikaži PDF
                 </button>
             }
 
@@ -45,11 +42,18 @@
     }
 </ul>
 
-<!-- Input polja za novi zadatak i datum -->
-<input placeholder="Upis Šifre" @bind="newSifra" />
-<input placeholder="Upis #Dokumenta" @bind="newTodo" />
-<input type="date" @bind="newTodoDueDate" style="margin-left: 5px;" />
-<button @onclick="AddTodo" style="margin-left: 5px; background-color: #FFDE21;">Add todo</button>
+<!-- Input polja za novi zadatak, datum i PDF -->
+<div style="margin-top: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 300px;">
+    <input placeholder="Upis Šifre" @bind="newSifra" />
+    <input placeholder="Upis #Dokumenta" @bind="newTodo" />
+    <input type="date" @bind="newTodoDueDate" />
+
+    <!-- Polje za odabir PDF datoteke -->
+    <label style="font-size: 0.9em; font-weight: bold;">Dodaj PDF dokument:</label>
+    <InputFile OnChange="HandleFileSelected" accept=".pdf" />
+
+    <button @onclick="AddTodo" style="background-color: #FFDE21; font-weight: bold; padding: 6px;">Add todo</button>
+</div>
 
 @code {
     private List<TodoItem> todos = [];
@@ -115,16 +119,20 @@
         }
     }
 
-    // Preuzimanje PDF dokumenta iz baze pomoću JavaScripta
-    private async Task DownloadPdf(TodoItem todo)
+    // Preuzimanje (prikaz) PDF dokumenta iz baze pomoću JavaScripta
+    private async Task ViewPdf(TodoItem todo)
     {
-        if (todo.PdfContent != null && !string.IsNullOrEmpty(todo.PdfFileName))
+        if (todo.PdfContent != null)
         {
-            var base64 = Convert.ToBase64String(todo.PdfContent);
-            var fileDataUrl = $"data:application/pdf;base64,{base64}";
+            // 1. Odmah otvaramo prazan prozor (sinkroni JS poziv sprječava popup blocker)
+            await JS.InvokeVoidAsync("preparePdfWindow");
 
-            // Poziv JavaScript funkcije za pokretanje preuzimanja u pregledniku
-            await JS.InvokeVoidAsync("open", fileDataUrl, "_blank");
+            // 2. Pripremamo stream iz baze podataka
+            using var stream = new MemoryStream(todo.PdfContent);
+            using var streamRef = new DotNetStreamReference(stream);
+
+            // 3. Šaljemo podatke u prethodno otvoreni prozor
+            await JS.InvokeVoidAsync("viewPdfFromStream", streamRef);
         }
     }
 
