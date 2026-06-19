@@ -10,7 +10,6 @@ builder.Services.AddRazorComponents()
 
 // aplikacija i lokalno i na webu čita datoteku todo.db iz mape same aplikacije.
 // 2. Registracija SQLite baze podataka
-// 2. Registracija SQLite baze podataka s preciznim putanjama
 builder.Services.AddDbContextFactory<TodoDbContext>(options =>
 {
     if (builder.Environment.IsDevelopment())
