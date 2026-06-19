@@ -8,9 +8,9 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents();
 
-// 2. Registracija SQLite baze podataka na novu trajnu Railway lokaciju (/app/data/)
+// aplikacija i lokalno i na webu čita datoteku todo.db iz mape same aplikacije.
 builder.Services.AddDbContextFactory<TodoDbContext>(options =>
-    options.UseSqlite("Data Source=/data/todo.db"));
+    options.UseSqlite("Data Source=todo.db"));
 
 var app = builder.Build();
 
@@ -34,20 +34,5 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
     .AddInteractiveWebAssemblyRenderMode()
     .AddAdditionalAssemblies(typeof(TodoList.Client._Imports).Assembly);
-
-// 3. Automatsko pokretanje migracija i kreiranje baze na Linuxu
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<TodoDbContext>();
-
-    var dbFolder = Path.GetDirectoryName("/data/todo.db");
-    if (!string.IsNullOrEmpty(dbFolder))
-    {
-        Directory.CreateDirectory(dbFolder);
-    }
-
-    // Zamijenjeno: EnsureCreated() -> Migrate()
-    dbContext.Database.Migrate();
-}
 
 app.Run();
