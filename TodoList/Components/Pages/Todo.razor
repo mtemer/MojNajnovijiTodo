@@ -9,23 +9,27 @@
 
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
 
-<h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
-
-<!-- PRIVREMENI ISPIS ZA DIJAGNOSTIKU (Uklonit ćemo ga kad proradi) -->
+<!-- Lokacija baze na poslužitelju (Zadržano radi kontrole) -->
 <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
     <strong>Lokacija baze podataka na poslužitelju:</strong> <code style="background: white; padding: 2px 4px;">@GetDatabasePath()</code>
 </div>
+
+<!-- LOKALNI ALAT: Gumb za izvlačenje baze iz memorije dok aplikacija radi -->
+@if (Env.IsDevelopment())
+{
+    <div style="margin-bottom: 20px; padding: 10px; background-color: #e3f2fd; border: 1px solid #90caf9; border-radius: 4px;">
+        <strong>Alat za spašavanje lokalne baze:</strong>
+        <button @onclick="PreuzmiStvarnuBazu" style="margin-left: 10px; background-color: #2196F3; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer;">
+            💾 Preuzmi ispravnu bazu na računalo
+        </button>
+    </div>
+}
 
 <ul>
     @foreach (var todo in todos)
     {
         <li style="margin-bottom: 8px; list-style-type: none; display: flex; align-items: center;">
-            <!-- Checkbox: Aktivan lokalno, zaključan (disabled) na produkciji -->
-            <input type="checkbox"
-                   checked="@todo.IsDone"
-                   @onchange="(e) => ToggleDone(todo, e)"
-                   disabled="@(!Env.IsDevelopment())"
-                   style="margin-right: 10px;" />
+            <input type="checkbox" checked="@todo.IsDone" @onchange="(e) => ToggleDone(todo, e)" disabled="@(!Env.IsDevelopment())" style="margin-right: 10px;" />
 
             <span style="@(todo.IsDone ? "text-decoration: line-through; color: gray;" : "")">
                 @todo.Title
@@ -42,7 +46,6 @@
                 </span>
             }
 
-            <!-- PRIKAZ I PREUZIMANJE PDF-A (Dostupno svugdje kroz JS Stream) -->
             @if (todo.PdfContent != null)
             {
                 <button @onclick="() => ViewPdf(todo)" style="margin-left: 10px; background-color: #4CAF50; color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer;">
@@ -50,7 +53,6 @@
                 </button>
             }
 
-            <!-- Gumb za brisanje: Prikazuje se SAMO u Developmentu (lokalno) -->
             @if (Env.IsDevelopment())
             {
                 <button @onclick="() => DeleteTodo(todo)" style="margin-left: 15px; color: red;">
@@ -61,18 +63,15 @@
     }
 </ul>
 
-<!-- Forma za unos novih zadataka: Prikazuje se SAMO lokalno na računalu -->
 @if (Env.IsDevelopment())
 {
+    <!-- Forma za unos (Vidljiva samo lokalno) -->
     <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 300px;">
         <input placeholder="Upis Šifre" @bind="newSifra" />
         <input placeholder="Upis #Dokumenta" @bind="newTodo" />
         <input type="date" @bind="newTodoDueDate" />
-
-        <!-- Polje za odabir PDF datoteke -->
         <label style="font-size: 0.9em; font-weight: bold;">Dodaj PDF dokument:</label>
         <InputFile OnChange="HandleFileSelected" accept=".pdf" />
-
         <button @onclick="AddTodo" style="background-color: #FFDE21; font-weight: bold; padding: 6px;">Add todo</button>
     </div>
 }
@@ -83,15 +82,25 @@ else
     </p>
 }
 
+<!-- ALAT ZA SINKRONIZACIJU: Prisilno otključan na webu kako bismo pregazili staru bazu -->
+<div style="margin-top: 40px; padding: 15px; border: 2px dashed #ff9800; background-color: #fffde7; border-radius: 8px; max-width: 400px;">
+    <h4 style="margin-top: 0; color: #e65100;">Alat za sinkronizaciju baze podataka</h4>
+    <p style="font-size: 0.9em; margin-bottom: 10px;">Odaberite ispravnu bazu s vašeg računala kako biste je ugurali na Railway:</p>
+    <InputFile OnChange="UploadDatabaseToServer" accept=".db" />
+    @if (!string.IsNullOrEmpty(syncStatus))
+    {
+        <p style="color: green; font-weight: bold; margin-top: 5px;">@syncStatus</p>
+    }
+</div>
+
 @code {
     private List<TodoItem> todos = [];
     private string? newTodo;
     private string? newSifra;
     private DateTime? newTodoDueDate;
-
-    // Privremene varijable za učitani PDF (koriste se samo lokalno)
     private byte[]? uploadedPdfContent;
     private string? uploadedPdfFileName;
+    private string syncStatus = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -99,91 +108,105 @@ else
         todos = await context.Todos.ToListAsync();
     }
 
-    // Obrada odabrane datoteke iz <InputFile> komponente
     private async Task HandleFileSelected(InputFileChangeEventArgs e)
     {
         var file = e.File;
         if (file != null && file.ContentType == "application/pdf")
         {
-            long maxFileSize = 5242880; // Maksimalno 5 MB
-
+            long maxFileSize = 5242880;
             using var stream = file.OpenReadStream(maxFileSize);
             using var memoryStream = new MemoryStream();
             await stream.CopyToAsync(memoryStream);
-
             uploadedPdfContent = memoryStream.ToArray();
             uploadedPdfFileName = file.Name;
         }
     }
 
-    // Dodavanje novog zadatka u bazu podataka (Lokalno)
     private async Task AddTodo()
     {
         if (!string.IsNullOrWhiteSpace(newTodo))
         {
-            var newItem = new TodoItem
-            {
-                Title = newTodo,
-                IsDone = false,
-                DueDate = newTodoDueDate,
-                Sifra = newSifra,
-                PdfContent = uploadedPdfContent,
-                PdfFileName = uploadedPdfFileName
-            };
-
+            var newItem = new TodoItem { Title = newTodo, IsDone = false, DueDate = newTodoDueDate, Sifra = newSifra, PdfContent = uploadedPdfContent, PdfFileName = uploadedPdfFileName };
             using var context = DbFactory.CreateDbContext();
             context.Todos.Add(newItem);
             await context.SaveChangesAsync();
-
             todos.Add(newItem);
-
-            // Resetiranje polja
-            newTodo = string.Empty;
-            newSifra = string.Empty;
-            newTodoDueDate = null;
-            uploadedPdfContent = null;
-            uploadedPdfFileName = null;
+            newTodo = string.Empty; newSifra = string.Empty; newTodoDueDate = null; uploadedPdfContent = null; uploadedPdfFileName = null;
         }
     }
 
-    // Prikaz PDF dokumenta u novom prozoru bez zagušenja SignalR veze
     private async Task ViewPdf(TodoItem todo)
     {
         if (todo.PdfContent != null)
         {
-            // 1. Sinkroni JS poziv za otvaranje praznog prozora (sprječava popup blocker)
             await JS.InvokeVoidAsync("preparePdfWindow");
-
-            // 2. Priprema streaminga iz baze
             using var stream = new MemoryStream(todo.PdfContent);
             using var streamRef = new DotNetStreamReference(stream);
-
-            // 3. Slanje podataka kroz stream izravno u pripremljeni prozor
             await JS.InvokeVoidAsync("viewPdfFromStream", streamRef);
         }
     }
 
-    // Izmjena statusa (Dovršeno / Aktivno)
     private async Task ToggleDone(TodoItem todo, ChangeEventArgs e)
     {
         todo.IsDone = (bool)(e.Value ?? false);
-
         using var context = DbFactory.CreateDbContext();
         context.Todos.Update(todo);
         await context.SaveChangesAsync();
     }
 
-    // Brisanje stavke iz baze
     private async Task DeleteTodo(TodoItem todoToRemove)
     {
         using var context = DbFactory.CreateDbContext();
         context.Todos.Remove(todoToRemove);
         await context.SaveChangesAsync();
-
-        // DODANO: Čišćenje i fizičko smanjivanje SQLite datoteke baze na disku
-        await context.Database.ExecuteSqlRawAsync("VACUUM;");
-
         todos.Remove(todoToRemove);
+    }
+
+    // Metoda koja prisilno gura ispravnu datoteku na server
+    private async Task UploadDatabaseToServer(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file != null)
+            {
+                // Docker lokacija prikazana na vašoj slici (/app/todo.db)
+                var targetPath = "/app/todo.db";
+
+                using var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+                using var fs = new FileStream(targetPath, FileMode.Create, FileAccess.Write);
+                await stream.CopyToAsync(fs);
+
+                syncStatus = "🚀 Stara baza je pobijeđena! Podaci su preneseni. Osvježite stranicu.";
+
+                using var context = DbFactory.CreateDbContext();
+                todos = await context.Todos.ToListAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            syncStatus = $"Greška: {ex.Message}";
+        }
+    }
+
+    // Pomoćna metoda za lokalno spašavanje baze preko PDF prozora
+    private async Task PreuzmiStvarnuBazu()
+    {
+        string putanjaDoBaze = "/app/todo.db";
+        if (Env.IsDevelopment())
+        {
+            string projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
+            putanjaDoBaze = Path.Combine(projectRoot, "todo.db");
+        }
+
+        if (File.Exists(putanjaDoBaze))
+        {
+            byte[] bajtoviBaze = await File.ReadAllBytesAsync(putanjaDoBaze);
+            await JS.InvokeVoidAsync("preparePdfWindow");
+            using var stream = new MemoryStream(bajtoviBaze);
+            using var streamRef = new DotNetStreamReference(stream);
+            await JS.InvokeVoidAsync("viewPdfFromStream", streamRef);
+        }
     }
 
     private string GetDatabasePath()
@@ -193,8 +216,6 @@ else
             string projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
             return Path.Combine(projectRoot, "todo.db");
         }
-
-        return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo.db");
+        return "/app/todo.db";
     }
-
 }
