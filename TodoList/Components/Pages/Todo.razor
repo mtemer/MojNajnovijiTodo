@@ -1,8 +1,11 @@
 ﻿@page "/"
 @rendermode InteractiveServer
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Hosting @* <-- DODANO *@
+@using Microsoft.Extensions.Hosting @* <-- DODANO *@
 @inject IDbContextFactory<TodoDbContext> DbFactory
 @inject IJSRuntime JS
+@inject IWebHostEnvironment Env
 
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
 
@@ -42,18 +45,33 @@
     }
 </ul>
 
-<!-- Input polja za novi zadatak, datum i PDF -->
-<div style="margin-top: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 300px;">
-    <input placeholder="Upis Šifre" @bind="newSifra" />
-    <input placeholder="Upis #Dokumenta" @bind="newTodo" />
-    <input type="date" @bind="newTodoDueDate" />
+<!-- Forma za unos i alat za sinkronizaciju: Prikazuje se SAMO u Developmentu (lokalno) -->
+@if (Env.IsDevelopment())
+{
+    <!-- Input polja za novi zadatak, datum i PDF -->
+    <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 300px;">
+        <input placeholder="Upis Šifre" @bind="newSifra" />
+        <input placeholder="Upis #Dokumenta" @bind="newTodo" />
+        <input type="date" @bind="newTodoDueDate" />
 
-    <!-- Polje za odabir PDF datoteke -->
-    <label style="font-size: 0.9em; font-weight: bold;">Dodaj PDF dokument:</label>
-    <InputFile OnChange="HandleFileSelected" accept=".pdf" />
+        <!-- Polje za odabir PDF datoteke -->
+        <label style="font-size: 0.9em; font-weight: bold;">Dodaj PDF dokument:</label>
+        <InputFile OnChange="HandleFileSelected" accept=".pdf" />
 
-    <button @onclick="AddTodo" style="background-color: #FFDE21; font-weight: bold; padding: 6px;">Add todo</button>
-</div>
+        <button @onclick="AddTodo" style="background-color: #FFDE21; font-weight: bold; padding: 6px;">Add todo</button>
+    </div>
+
+    <!-- ALAT ZA PRIVREMENU SINKRONIZACIJU -->
+    <div style="margin-top: 40px; padding: 15px; border: 2px dashed #ff9800; background-color: #fffde7; border-radius: 8px;">
+        <h4 style="margin-top: 0; color: #e65100;">Alat za sinkronizaciju baze (Vidljivo samo lokalno)</h4>
+        <p style="font-size: 0.9em; margin-bottom: 10px;">Odaberite bazu s vašeg računala kako biste je poslali na Railway:</p>
+        <InputFile OnChange="UploadDatabaseToServer" accept=".db" />
+        @if (!string.IsNullOrEmpty(syncStatus))
+        {
+            <p style="color: green; font-weight: bold; margin-top: 5px;">@syncStatus</p>
+        }
+    </div>
+}
 
 @code {
     private List<TodoItem> todos = [];
@@ -64,6 +82,37 @@
     // Privremene varijable za učitani PDF
     private byte[]? uploadedPdfContent;
     private string? uploadedPdfFileName;
+
+    private string syncStatus = "";
+
+    // Metoda za slanje lokalne baze na server
+    private async Task UploadDatabaseToServer(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file != null)
+            {
+                // Putanja do baze na Railwayu (definirana u vašem Program.cs)
+                var targetPath = "/data/todo.db";
+
+                // Čitamo poslanu datoteku i prepisujemo postojeću na serveru
+                using var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024); // dopušteno do 50MB
+                using var fs = new FileStream(targetPath, FileMode.Create, FileAccess.Write);
+                await stream.CopyToAsync(fs);
+
+                syncStatus = "🚀 Baza je uspješno prenesena na Railway! Osvježite stranicu.";
+
+                // Ponovno učitavamo podatke u listu
+                using var context = DbFactory.CreateDbContext();
+                todos = await context.Todos.ToListAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            syncStatus = $"Greška: {ex.Message}";
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
