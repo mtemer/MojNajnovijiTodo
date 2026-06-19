@@ -23,9 +23,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="todo.db">
+    <Content Include="todo.db">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+    </Content>
   </ItemGroup>
-
+  
 </Project>

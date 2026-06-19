@@ -10,20 +10,21 @@ builder.Services.AddRazorComponents()
 
 // aplikacija i lokalno i na webu čita datoteku todo.db iz mape same aplikacije.
 // 2. Registracija SQLite baze podataka
+// 2. Registracija SQLite baze podataka s preciznim putanjama
 builder.Services.AddDbContextFactory<TodoDbContext>(options =>
 {
-    // Ako smo lokalno u Visual Studiju, čitamo bazu direktno iz korijena projekta
     if (builder.Environment.IsDevelopment())
     {
-        // Vraća putanju do korijena projekta (gdje su Program.cs i vaš todo.db)
+        // Lokalno u Visual Studiju čitamo direktno iz korijena projekta
         string projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
         string dbPath = Path.Combine(projectRoot, "todo.db");
         options.UseSqlite($"Data Source={dbPath}");
     }
     else
     {
-        // Na Railwayu čitamo bazu iz mape gdje je aplikacija objavljena
-        options.UseSqlite("Data Source=todo.db");
+        // NA RAILWAYU: Prisilno čitamo bazu iz mape gdje je aplikacija objavljena (/app/)
+        string prodDbPath = Path.Combine(AppContext.BaseDirectory, "todo.db");
+        options.UseSqlite($"Data Source={prodDbPath}");
     }
 });
 
