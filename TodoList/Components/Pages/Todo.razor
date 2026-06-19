@@ -173,6 +173,9 @@ else
         context.Todos.Remove(todoToRemove);
         await context.SaveChangesAsync();
 
+        // DODANO: Čišćenje i fizičko smanjivanje SQLite datoteke baze na disku
+        await context.Database.ExecuteSqlRawAsync("VACUUM;");
+
         todos.Remove(todoToRemove);
     }
 }
