@@ -9,6 +9,13 @@
 
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
 
+<h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
+
+<!-- PRIVREMENI ISPIS ZA DIJAGNOSTIKU (Uklonit ćemo ga kad proradi) -->
+<div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
+    <strong>Lokacija baze podataka na poslužitelju:</strong> <code style="background: white; padding: 2px 4px;">@GetDatabasePath()</code>
+</div>
+
 <ul>
     @foreach (var todo in todos)
     {
@@ -178,4 +185,16 @@ else
 
         todos.Remove(todoToRemove);
     }
+
+    private string GetDatabasePath()
+    {
+        if (Env.IsDevelopment())
+        {
+            string projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
+            return Path.Combine(projectRoot, "todo.db");
+        }
+
+        return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo.db");
+    }
+
 }
