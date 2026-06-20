@@ -162,7 +162,14 @@ else
         try
         {
             var file = e.File;
-            if (file == null) return;
+            if (file == null)
+            {
+                syncStatus = "❌ Datoteka nije odabrana.";
+                return;
+            }
+
+            syncStatus = "⏳ Sinkronizacija je započela... Čitam podatke...";
+            StateHasChanged();
 
             // 1. Čitamo poslanu bazu privremeno u memoriju računala
             var tempPath = Path.GetTempFileName();
@@ -172,52 +179,74 @@ else
                 await stream.CopyToAsync(fs);
             }
 
-            // 2. Izvlačimo sve stavke i PDF-ove iz te poslane datoteke
+            // 2. Izvlačimo stavke i PDF-ove iz te poslane datoteke
             List<TodoItem> stavkeZaPrenijeti = [];
             var optionsBuilder = new DbContextOptionsBuilder<TodoDbContext>();
             optionsBuilder.UseSqlite($"Data Source={tempPath}");
 
-            using (var tempContext = new TodoDbContext(optionsBuilder.Options))
+            try
             {
-                stavkeZaPrenijeti = await tempContext.Todos.ToListAsync();
+                using (var tempContext = new TodoDbContext(optionsBuilder.Options))
+                {
+                    stavkeZaPrenijeti = await tempContext.Todos.ToListAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                syncStatus = $"❌ Greška prilikom čitanja poslane datoteke: {ex.Message}. Jeste li odabrali ispravnu .db datoteku?";
+                if (File.Exists(tempPath)) File.Delete(tempPath);
+                return;
             }
 
-            // Brišemo privremenu datoteku s diska računala
             if (File.Exists(tempPath)) File.Delete(tempPath);
 
-            // 3. Spajamo se na živi produkcijski SQL kontext na Railwayu
+            syncStatus = $"⏳ Pročitano {stavkeZaPrenijeti.Count} stavki. Brišem staru web bazu...";
+            StateHasChanged();
+
+            // 3. Spajamo se na produkcijski SQL kontext na Railwayu
             using (var prodContext = DbFactory.CreateDbContext())
             {
-                // Prisno čistimo tablicu preko SQL-a (zaobilazi zaključavanje cijele datoteke)
-                await prodContext.Database.ExecuteSqlRawAsync("DELETE FROM Todos;");
-
-                // Ubacujemo stavku po stavku zajedno s PDF dokumentima izravno u bazu
-                foreach (var stavka in stavkeZaPrenijeti)
+                // Koristimo transakciju kako bismo osigurali da se sve izvrši odjednom
+                using var transaction = await prodContext.Database.BeginTransactionAsync();
+                try
                 {
-                    // Resetiramo ID kako bi ga SQLite sam ponovno generirao na serveru
-                    var novaStavka = new TodoItem
-                    {
-                        Title = stavka.Title,
-                        Sifra = stavka.Sifra,
-                        IsDone = stavka.IsDone,
-                        DueDate = stavka.DueDate,
-                        PdfContent = stavka.PdfContent,
-                        PdfFileName = stavka.PdfFileName
-                    };
-                    prodContext.Todos.Add(novaStavka);
-                }
+                    // Čistimo staru tablicu
+                    await prodContext.Database.ExecuteSqlRawAsync("DELETE FROM Todos;");
 
-                await prodContext.SaveChangesAsync();
+                    // Ubacujemo stavku po stavku zajedno s PDF dokumentima
+                    foreach (var stavka in stavkeZaPrenijeti)
+                    {
+                        var novaStavka = new TodoItem
+                        {
+                            Title = stavka.Title,
+                            Sifra = stavka.Sifra,
+                            IsDone = stavka.IsDone,
+                            DueDate = stavka.DueDate,
+                            PdfContent = stavka.PdfContent,
+                            PdfFileName = stavka.PdfFileName
+                        };
+                        prodContext.Todos.Add(novaStavka);
+                    }
+
+                    await prodContext.SaveChangesAsync();
+                    await transaction.CommitAsync();
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    syncStatus = $"❌ SQL Greška na serveru: {ex.Message}. Provjerite jesu li migracije baze usklađene.";
+                    return;
+                }
             }
 
             // 4. Osvježavamo sučelje na ekranu
             await UcitajPodatkeIzBaze();
-            syncStatus = $"🚀 Sinkronizacija uspješna! Preneseno je ukupno {todos.Count} stavki.";
+            syncStatus = $"🚀 Sinkronizacija uspješna! Na webu se sada nalazi ukupno {todos.Count} stavki.";
             StateHasChanged();
         }
         catch (Exception ex)
         {
-            syncStatus = $"Greška prilikom sinkronizacije: {ex.Message}";
+            syncStatus = $"❌ Kritična greška u aplikaciji: {ex.Message}";
         }
     }
 
