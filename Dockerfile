@@ -1,21 +1,20 @@
-# 1. Faza izgradnje aplikacije pomoću službenog .NET 10 SDK-a s Microsoft servera
-FROM ://microsoft.com AS build
+# Definišemo registry na vrhu kako bismo prevarili GitHub parser linkova
+ARG REGISTRY=mcr.microsoft.com
+
+FROM ${REGISTRY}/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Kopiranje konfiguracije i obnova paketa iz korijena
 COPY ["TodoList.csproj", "./"]
 RUN dotnet restore "TodoList.csproj"
 
-# Kopiranje preostalog koda i objava
 COPY . .
 RUN dotnet publish "TodoList.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-# 2. Pokretanje gotove aplikacije u čistom .NET 10 Runtime okruženju
-FROM ://microsoft.com AS final
+FROM ${REGISTRY}/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# PRISILNI TRIK: Kopiramo vašu bazu u finalnu mapu kako bi je poslužitelj odmah vidio
+# Kopiramo bazu u radnu mapu kontejnera
 COPY ["todonova.db", "/app/todonova.db"]
 
 ENTRYPOINT ["dotnet", "TodoList.dll"]
