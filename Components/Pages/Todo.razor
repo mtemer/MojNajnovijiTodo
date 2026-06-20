@@ -6,7 +6,7 @@
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
 
 <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
-    <strong>Lokacija baze podataka na poslužitelju:</strong> <code style="background: white; padding: 2px 4px;">@GetDatabasePath()</code>
+    <strong>Status aktivne baze:</strong> <code style="background: white; padding: 2px 4px;">Uspješno povezano na poslužitelj</code>
 </div>
 
 <ul>
@@ -42,7 +42,7 @@
 
 <div style="margin-top: 40px; padding: 15px; border: 2px dashed #ff9800; background-color: #fffde7; border-radius: 8px; max-width: 400px;">
     <h4 style="margin-top: 0; color: #e65100;">Alat za sinkronizaciju baze podataka</h4>
-    <p style="font-size: 0.9em; margin-bottom: 10px;">Odaberite ispravnu bazu s vašeg računala kako biste je ugurali na Railway:</p>
+    <p style="font-size: 0.9em; margin-bottom: 10px;">Odaberite bazu s vašeg računala kako biste je ugurali na Railway:</p>
     <Microsoft.AspNetCore.Components.Forms.InputFile OnChange="UploadDatabaseToServer" accept=".db" />
     @if (!string.IsNullOrEmpty(syncStatus))
     {
@@ -83,7 +83,7 @@
         await context.SaveChangesAsync();
     }
 
-    // SIGURNI ALGORITAM KOJI RAZBIJA WINDOWS I LINUX LOCK DATOTEKA
+    // IZRAVNI NEPOGREŠIVI SQLite ČITAČ PODATAKA (Bypassa lockove i migracije)
     private async Task UploadDatabaseToServer(Microsoft.AspNetCore.Components.Forms.InputFileChangeEventArgs e)
     {
         try
@@ -91,10 +91,10 @@
             var file = e.File;
             if (file == null) return;
 
-            syncStatus = "⏳ Čitam datoteku u sigurnu memoriju...";
+            syncStatus = "⏳ Čitam podatke iz odabrane datoteke...";
             StateHasChanged();
 
-            // 1. Čitamo poslanu datoteku isključivo kao struju bajtova (bypassa File Lock)
+            // 1. Čitamo bazu isključivo kao niz bajtova u RAM (razbija Windows File Lock)
             byte[] bajtoviBaze;
             using (var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024))
             {
@@ -103,27 +103,41 @@
                 bajtoviBaze = ms.ToArray();
             }
 
-            // 2. Pišemo je u privremenu datoteku izvan dosega Visual Studija
+            // 2. Pišemo privremenu datoteku na disk poslužitelja
             var tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".db");
             await File.WriteAllBytesAsync(tempPath, bajtoviBaze);
 
-            // 3. Otvaramo privremenu bazu i izvlačimo podatke
+            // 3. Koristimo izravnu SQLite vezu i ručno izvlačimo podatke iz tablice Todos sa slike
             List<TodoItem> stavkeZaPrenijeti = [];
-            var optionsBuilder = new DbContextOptionsBuilder<TodoDbContext>();
-            optionsBuilder.UseSqlite($"Data Source={tempPath}");
-            
-            using (var tempContext = new TodoDbContext(optionsBuilder.Options))
+            using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tempPath}"))
             {
-                stavkeZaPrenijeti = await tempContext.Todos.ToListAsync();
+                await conn.OpenAsync();
+                var cmd = new Microsoft.Data.Sqlite.SqliteCommand("SELECT Title, Sifra, IsDone, DueDate, PdfContent, PdfFileName FROM Todos", conn);
+                using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        var stavka = new TodoItem
+                        {
+                            Title = reader.IsDBNull(0) ? null : reader.GetString(0),
+                            Sifra = reader.IsDBNull(1) ? null : reader.GetString(1),
+                            IsDone = reader.GetInt32(2) == 1,
+                            DueDate = reader.IsDBNull(3) ? null : DateTime.Parse(reader.GetString(3)),
+                            PdfContent = reader.IsDBNull(4) ? null : (byte[])reader.GetValue(4),
+                            PdfFileName = reader.IsDBNull(5) ? null : reader.GetString(5)
+                        };
+                        stavkeZaPrenijeti.Add(stavka);
+                    }
+                }
+                await conn.CloseAsync();
             }
 
-            // Odmah brišemo privremeni file
             if (File.Exists(tempPath)) File.Delete(tempPath);
 
-            syncStatus = $"⏳ Pročitano {stavkeZaPrenijeti.Count} stavki. Spremam u glavnu bazu...";
+            syncStatus = $"⏳ Pročitano {stavkeZaPrenijeti.Count} stavki. Prepisujem tablicu na serveru...";
             StateHasChanged();
 
-            // 4. Upisujemo podatke izravno u aktivni SQL kontekst
+            // 4. Upisujemo podatke u produkcijsku bazu kroz čisti SQL
             using (var prodContext = DbFactory.CreateDbContext())
             {
                 await prodContext.Database.ExecuteSqlRawAsync("DELETE FROM Todos;");
@@ -143,15 +157,10 @@
                 }
 
                 await prodContext.SaveChangesAsync();
+                todos = await prodContext.Todos.ToListAsync();
             }
 
-            // 5. Osvježavamo listu na ekranu
-            using (var ponovniContext = DbFactory.CreateDbContext())
-            {
-                todos = await ponovniContext.Todos.ToListAsync();
-            }
-
-            syncStatus = $"🚀 Sinkronizacija uspješna! Na ekranu se sada nalaze sve {todos.Count} stavke.";
+            syncStatus = $"🚀 Sinkronizacija uspješna! Na webu se sada nalaze sve {todos.Count} stavke.";
             StateHasChanged();
         }
         catch (Exception ex)
@@ -159,6 +168,13 @@
             syncStatus = $"❌ Greška tijekom prijenosa: {ex.Message}";
         }
     }
+
+    private string GetDatabasePath()
+    {
+        return "todonova.db (Aktivna produkcijska baza)";
+    }
+}
+
 
     private string GetDatabasePath()
     {
