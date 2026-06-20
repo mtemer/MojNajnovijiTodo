@@ -14,31 +14,30 @@
 <body>
     <Routes />
 
-    <!-- Ako ste dodavali skriptu za osvježavanje iz prošlog koraka, ona ide ovdje -->
-    <script src="/_framework/aspnetcore-browser-refresh.js"></script>
+    <!-- Glavna Blazor skripta potrebna za rad aplikacije -->
     <script src="_framework/blazor.web.js"></script>
 
-    <!-- TOČNO OVDJE ZALIJEPITE SCRIPT ZA PDF -->
+    <!-- SCRIPT ZA PRIKAZ PDF DOCUMENTA -->
     <script>
         let pdfWindow = null;
 
         window.preparePdfWindow = () => {
-        pdfWindow = window.open("about:blank", "_blank");
+            pdfWindow = window.open("about:blank", "_blank");
         };
 
         window.viewPdfFromStream = async (contentStreamReference) => {
-        if (!pdfWindow) return;
+            if (!pdfWindow) return;
 
-        try {
-        const arrayBuffer = await contentStreamReference.arrayBuffer();
-        const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
+            try {
+                const arrayBuffer = await contentStreamReference.arrayBuffer();
+                const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
 
-        pdfWindow.location.href = url;
-        } catch (error) {
-        console.error("Greška prilikom učitavanja PDF-a:", error);
-        pdfWindow.close();
-        }
+                pdfWindow.location.href = url;
+            } catch (error) {
+                console.error("Greška prilikom učitavanja PDF-a:", error);
+                pdfWindow.close();
+            }
         };
     </script>
 </body>
