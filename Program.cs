@@ -17,7 +17,7 @@ builder.Services.AddDbContextFactory<TodoDbContext>(options =>
     }
     else
     {
-        string prodDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo.db");
+        string prodDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todonova.db");
         options.UseSqlite($"Data Source={prodDbPath}");
     }
 });
