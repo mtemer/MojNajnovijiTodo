@@ -45,9 +45,7 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode()
-    .AddInteractiveWebAssemblyRenderMode()
-    .AddAdditionalAssemblies(typeof(TodoList.Client._Imports).Assembly);
+    .AddInteractiveServerRenderMode();
 
 // PRIVREMENI KOD ZA PRISILNO ČIŠĆENJE WEB BAZE
 using (var scope = app.Services.CreateScope())
