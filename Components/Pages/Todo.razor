@@ -3,6 +3,11 @@
 @using Microsoft.EntityFrameworkCore
 @using TodoList
 
+@* DODAJTE OVA DVA RETKA ISPOD AKO NEDOSTAJU: *@
+@inject IDbContextFactory<TodoDbContext> DbFactory
+@inject Microsoft.JSInterop.IJSRuntime JS
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Env  @* <-- ISPRAVLJENO (Dodana injekcija za Env) *@
+
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
 
 <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
