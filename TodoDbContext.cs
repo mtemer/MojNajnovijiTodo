@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+namespace TodoList; // <-- DODAJTE OVAJ RETAK NA SAMI VRH
 
 //upravlja vezom s bazom podataka
 public class TodoDbContext : DbContext
