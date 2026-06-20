@@ -1,18 +1,17 @@
 ﻿@page "/"
-@rendermode InteractiveServer
+@rendermode Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer
 @using Microsoft.EntityFrameworkCore
-@using Microsoft.AspNetCore.Hosting
-@using Microsoft.Extensions.Hosting
-@inject IDbContextFactory<TodoDbContext> DbFactory
-@inject IJSRuntime JS
-@inject IWebHostEnvironment Env
+@using TodoList
+@using System.Text.Json
 
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
 
-<!-- Lokacija baze na poslužitelju (Zadržano radi kontrole) -->
-<div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
-    <strong>Lokacija baze podataka na poslužitelju:</strong> <code style="background: white; padding: 2px 4px;">@GetDatabasePath()</code>
-</div>
+@if (Env.IsDevelopment())
+{
+    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
+        <strong>LOKALNI RAD:</strong> <code style="background: white; padding: 2px 4px;">Uspješno povezano</code>
+    </div>
+}
 
 <ul>
     @foreach (var todo in todos)
@@ -44,7 +43,7 @@
 
             @if (Env.IsDevelopment())
             {
-                <button @onclick="() => DeleteTodo(todo)" style="margin-left: 15px; color: red;">
+                <button @onclick="() => DeleteTodo(todo)" style="margin-left: 15px; color: red; border: none; background: none; cursor: pointer;">
                     Briši
                 </button>
             }
@@ -52,16 +51,17 @@
     }
 </ul>
 
+<!-- FORMA ZA UPIS: Sada je trajno otključana i uvijek vidljiva lokalno na računalu -->
 @if (Env.IsDevelopment())
 {
-    <!-- Forma za unos (Vidljiva samo lokalno) -->
-    <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 300px;">
-        <input placeholder="Upis Šifre" @bind="newSifra" />
-        <input placeholder="Upis #Dokumenta" @bind="newTodo" />
-        <input type="date" @bind="newTodoDueDate" />
-        <label style="font-size: 0.9em; font-weight: bold;">Dodaj PDF dokument:</label>
-        <InputFile OnChange="HandleFileSelected" accept=".pdf" />
-        <button @onclick="AddTodo" style="background-color: #FFDE21; font-weight: bold; padding: 6px;">Add todo</button>
+    <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 300px; padding: 15px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 6px;">
+        <h4 style="margin-top: 0;">Novi unos</h4>
+        <input placeholder="Upis Šifre" @bind="newSifra" style="padding: 4px;" />
+        <input placeholder="Upis #Dokumenta" @bind="newTodo" style="padding: 4px;" />
+        <input type="date" @bind="newTodoDueDate" style="padding: 4px;" />
+        <label style="font-size: 0.9em; font-weight: bold; margin-top: 5px;">Dodaj PDF dokument:</label>
+        <Microsoft.AspNetCore.Components.Forms.InputFile OnChange="HandleFileSelected" accept=".pdf" />
+        <button @onclick="AddTodo" style="background-color: #FFDE21; font-weight: bold; padding: 8px; margin-top: 5px; border: 1px solid #ccb11b; border-radius: 4px; cursor: pointer;">Add todo</button>
     </div>
 }
 else
@@ -71,56 +71,61 @@ else
     </p>
 }
 
-<!-- ALAT ZA SINKRONIZACIJU: Prisilno otključan na webu kako bismo pregazili staru bazu -->
-<div style="margin-top: 40px; padding: 15px; border: 2px dashed #ff9800; background-color: #fffde7; border-radius: 8px; max-width: 400px;">
-    <h4 style="margin-top: 0; color: #e65100;">Alat za sinkronizaciju baze podataka</h4>
-    <p style="font-size: 0.9em; margin-bottom: 10px;">Odaberite ispravnu bazu s vašeg računala kako biste je ugurali na Railway:</p>
-    <InputFile OnChange="UploadDatabaseToServer" accept=".db" />
+<!-- ALAT ZA SINKRONIZACIJU: Kopiranje i uvoz podataka (0% šanse za File Lock) -->
+<div style="margin-top: 40px; padding: 15px; border: 2px dashed #ff9800; background-color: #fffde7; border-radius: 8px; max-width: 500px;">
+    <h4 style="margin-top: 0; color: #e65100;">Alat za tekstualnu sinkronizaciju podataka</h4>
+    
+    @if (Env.IsDevelopment())
+    {
+        <p style="font-size: 0.9em; margin-bottom: 10px;">Kliknite gumb ispod kako biste kopirali sve lokalne stavke u međuspremnik:</p>
+        <button @onclick="KopirajPodatkeKaoTekst" style="background-color: #2196F3; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+            📋 Kopiraj sve stavke s računala
+        </button>
+    }
+    else
+    {
+        <p style="font-size: 0.9em; margin-bottom: 10px;">Zalijepite tekst kopiran s računala u polje ispod i kliknite Uvezi:</p>
+        <textarea @bind="jsonTekst" placeholder="Ovdje desni klik -> Zalijepi (Paste)" style="width: 100%; height: 100px; margin-bottom: 10px; font-family: monospace; font-size: 0.85em;"></textarea>
+        <button @onclick="UveziPodatkeIzTeksta" style="background-color: #4CAF50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+            📥 Uvezi podatke na Web
+        </button>
+    }
+
     @if (!string.IsNullOrEmpty(syncStatus))
     {
-        <p style="color: green; font-weight: bold; margin-top: 5px;">@syncStatus</p>
+        <p style="color: green; font-weight: bold; margin-top: 8px; margin-bottom: 0;">@syncStatus</p>
     }
 </div>
 
 @code {
     private List<TodoItem> todos = [];
+    private string jsonTekst = "";
+    private string syncStatus = "";
+
+    // Varijable za unos novog zadatka
     private string? newTodo;
     private string? newSifra;
     private DateTime? newTodoDueDate;
     private byte[]? uploadedPdfContent;
     private string? uploadedPdfFileName;
-    private string syncStatus = "";
+
+    [Inject] private IDbContextFactory<TodoDbContext> DbFactory { get; set; } = default!;
+    [Inject] private Microsoft.JSInterop.IJSRuntime JS { get; set; } = default!;
+    [Inject] private Microsoft.AspNetCore.Hosting.IWebHostEnvironment Env { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
-        try
-        {
-            using var context = DbFactory.CreateDbContext();
-
-            // KONAČNI POPRAVAK ZA GREŠKU 500: Ako tablica ne postoji na serveru, EF Core će je sam stvoriti!
-            await context.Database.EnsureCreatedAsync();
-
-            todos = await context.Todos.ToListAsync();
-        }
-        catch (Exception ex)
-        {
-            // Ako se dogodi bilo kakva greška, spremit ćemo je u status da je vidite na ekranu
-            syncStatus = $"Greška pri pokretanju baze: {ex.Message}";
-        }
-    }
-
-    private async Task UcitajPodatkeIzBaze()
-    {
         using var context = DbFactory.CreateDbContext();
+        await context.Database.EnsureCreatedAsync();
         todos = await context.Todos.ToListAsync();
     }
 
-    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    private async Task HandleFileSelected(Microsoft.AspNetCore.Components.Forms.InputFileChangeEventArgs e)
     {
         var file = e.File;
         if (file != null && file.ContentType == "application/pdf")
         {
-            long maxFileSize = 5242880;
+            long maxFileSize = 5242880; // 5MB
             using var stream = file.OpenReadStream(maxFileSize);
             using var memoryStream = new MemoryStream();
             await stream.CopyToAsync(memoryStream);
@@ -133,12 +138,28 @@ else
     {
         if (!string.IsNullOrWhiteSpace(newTodo))
         {
-            var newItem = new TodoItem { Title = newTodo, IsDone = false, DueDate = newTodoDueDate, Sifra = newSifra, PdfContent = uploadedPdfContent, PdfFileName = uploadedPdfFileName };
+            var newItem = new TodoItem 
+            { 
+                Title = newTodo, 
+                IsDone = false, 
+                DueDate = newTodoDueDate, 
+                Sifra = newSifra, 
+                PdfContent = uploadedPdfContent, 
+                PdfFileName = uploadedPdfFileName 
+            };
+            
             using var context = DbFactory.CreateDbContext();
             context.Todos.Add(newItem);
             await context.SaveChangesAsync();
-            await UcitajPodatkeIzBaze();
-            newTodo = string.Empty; newSifra = string.Empty; newTodoDueDate = null; uploadedPdfContent = null; uploadedPdfFileName = null;
+            
+            todos.Add(newItem);
+            
+            // Čišćenje polja nakon unosa
+            newTodo = string.Empty; 
+            newSifra = string.Empty; 
+            newTodoDueDate = null; 
+            uploadedPdfContent = null; 
+            uploadedPdfFileName = null;
         }
     }
 
@@ -148,7 +169,7 @@ else
         {
             await JS.InvokeVoidAsync("preparePdfWindow");
             using var stream = new MemoryStream(todo.PdfContent);
-            using var streamRef = new DotNetStreamReference(stream);
+            using var streamRef = new Microsoft.JSInterop.DotNetStreamReference(stream);
             await JS.InvokeVoidAsync("viewPdfFromStream", streamRef);
         }
     }
@@ -166,110 +187,67 @@ else
         using var context = DbFactory.CreateDbContext();
         context.Todos.Remove(todoToRemove);
         await context.SaveChangesAsync();
-        await UcitajPodatkeIzBaze();
+        todos.Remove(todoToRemove);
     }
 
-    // TEKSTUALNA SINKRONIZACIJA BEZ KORIŠTENJA PRODUKCIJSKOG FILE LOCKA
-    private async Task UploadDatabaseToServer(InputFileChangeEventArgs e)
+    // LOKALNI KORAK: Pretvara živu bazu u tekst i sprema u Clipboard
+    private async Task KopirajPodatkeKaoTekst()
     {
         try
         {
-            var file = e.File;
-            if (file == null)
-            {
-                syncStatus = "❌ Datoteka nije odabrana.";
-                return;
-            }
-
-            syncStatus = "⏳ Sinkronizacija je započela... Čitam podatke...";
-            StateHasChanged();
-
-            // 1. Čitamo poslanu bazu privremeno u memoriju računala
-            var tempPath = Path.GetTempFileName();
-            using (var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024))
-            {
-                using var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write);
-                await stream.CopyToAsync(fs);
-            }
-
-            // 2. Izvlačimo stavke i PDF-ove iz te poslane datoteke
-            List<TodoItem> stavkeZaPrenijeti = [];
-            var optionsBuilder = new DbContextOptionsBuilder<TodoDbContext>();
-            optionsBuilder.UseSqlite($"Data Source={tempPath}");
-
-            try
-            {
-                using (var tempContext = new TodoDbContext(optionsBuilder.Options))
-                {
-                    stavkeZaPrenijeti = await tempContext.Todos.ToListAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                syncStatus = $"❌ Greška prilikom čitanja poslane datoteke: {ex.Message}. Jeste li odabrali ispravnu .db datoteku?";
-                if (File.Exists(tempPath)) File.Delete(tempPath);
-                return;
-            }
-
-            if (File.Exists(tempPath)) File.Delete(tempPath);
-
-            syncStatus = $"⏳ Pročitano {stavkeZaPrenijeti.Count} stavki. Brišem staru web bazu...";
-            StateHasChanged();
-
-            // 3. Spajamo se na produkcijski SQL kontext na Railwayu
-            using (var prodContext = DbFactory.CreateDbContext())
-            {
-                // Koristimo transakciju kako bismo osigurali da se sve izvrši odjednom
-                using var transaction = await prodContext.Database.BeginTransactionAsync();
-                try
-                {
-                    // Čistimo staru tablicu
-                    await prodContext.Database.ExecuteSqlRawAsync("DELETE FROM Todos;");
-
-                    // Ubacujemo stavku po stavku zajedno s PDF dokumentima
-                    foreach (var stavka in stavkeZaPrenijeti)
-                    {
-                        var novaStavka = new TodoItem
-                        {
-                            Title = stavka.Title,
-                            Sifra = stavka.Sifra,
-                            IsDone = stavka.IsDone,
-                            DueDate = stavka.DueDate,
-                            PdfContent = stavka.PdfContent,
-                            PdfFileName = stavka.PdfFileName
-                        };
-                        prodContext.Todos.Add(novaStavka);
-                    }
-
-                    await prodContext.SaveChangesAsync();
-                    await transaction.CommitAsync();
-                }
-                catch (Exception ex)
-                {
-                    await transaction.RollbackAsync();
-                    syncStatus = $"❌ SQL Greška na serveru: {ex.Message}. Provjerite jesu li migracije baze usklađene.";
-                    return;
-                }
-            }
-
-            // 4. Osvježavamo sučelje na ekranu
-            await UcitajPodatkeIzBaze();
-            syncStatus = $"🚀 Sinkronizacija uspješna! Na webu se sada nalazi ukupno {todos.Count} stavki.";
-            StateHasChanged();
+            using var context = DbFactory.CreateDbContext();
+            var sveStavke = await context.Todos.ToListAsync();
+            var tekst = JsonSerializer.Serialize(sveStavke);
+            
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", tekst);
+            syncStatus = $"✅ {sveStavke.Count} stavke su uspješno kopirane! Sada otvorite WEB stranicu i zalijepite ih.";
         }
         catch (Exception ex)
         {
-            syncStatus = $"❌ Kritična greška u aplikaciji: {ex.Message}";
+            syncStatus = $"❌ Greška prilikom kopiranja: {ex.Message}";
         }
     }
 
-    private string GetDatabasePath()
+    // PRODUKCIJSKI KORAK: Prima tekst s računala i urezuje stavke na server
+    private async Task UveziPodatkeIzTeksta()
     {
-        if (Env.IsDevelopment())
+        try
         {
-            string projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
-            return Path.Combine(projectRoot, "todonova.db");
+            if (string.IsNullOrWhiteSpace(jsonTekst))
+            {
+                syncStatus = "❌ Polje za tekst je prazno. Molimo zalijepite kôd.";
+                return;
+            }
+
+            var stavkeZaUvoz = JsonSerializer.Deserialize<List<TodoItem>>(jsonTekst);
+            if (stavkeZaUvoz == null || stavkeZaUvoz.Count == 0)
+            {
+                syncStatus = "❌ Tekst nije ispravan ili ne sadrži stavke.";
+                return;
+            }
+
+            using (var prodContext = DbFactory.CreateDbContext())
+            {
+                await prodContext.Database.ExecuteSqlRawAsync("DELETE FROM Todos;");
+
+                foreach (var stavka in stavkeZaUvoz)
+                {
+                    var novaStavka = new TodoItem
+                    {
+                        Title = stavka.Title,
+                        Sifra = stavka.Sifra,
+                        IsDone = stavka.IsDone,
+                        DueDate = stavka.DueDate,
+                        PdfContent = stavka.PdfContent,
+                        PdfFileName = stavka.PdfFileName
+                    };
+                    prodContext.Todos.Add(novaStavka);
+                }
+                await prodContext.SaveChangesAsync(); todos = await prodContext.Todos.ToListAsync();
+            }
+            jsonTekst = ""; syncStatus = $"🚀 Uspjeh! Na webu se sada nalaze sve {todos.Count} stavke."; StateHasChanged();
         }
-        return "todo.db (Aktivna Docker baza)";
+        catch (Exception ex) { syncStatus = $"❌ Greška tijekom uvoza: {ex.Message}"; }
     }
 }
+
