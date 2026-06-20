@@ -1,11 +1,13 @@
 ﻿@page "/"
 @rendermode InteractiveServer
 @using Microsoft.EntityFrameworkCore
-@using Microsoft.AspNetCore.Hosting
+@using Microsoft.AspNetCore.Hosting 
 @using Microsoft.Extensions.Hosting
+@using Microsoft.AspNetCore.Components.Forms  @* <-- DODAJTE OVAJ REDAK (Rješava InputFile grešku) *@
+@using Microsoft.JSInterop                     @* <-- DODAJTE OVAJ REDAK (Rješava IJSRuntime grešku) *@
 @inject IDbContextFactory<TodoDbContext> DbFactory
 @inject IJSRuntime JS
-@inject IWebHostEnvironment Env
+@inject IWebHostEnvironment Env 
 
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
 
