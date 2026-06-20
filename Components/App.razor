@@ -1,0 +1,46 @@
+﻿<!DOCTYPE html>
+<html lang="hr">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="TodoList.styles.css" />
+    <HeadOutlet />
+</head>
+
+<body>
+    <Routes />
+
+    <!-- Ako ste dodavali skriptu za osvježavanje iz prošlog koraka, ona ide ovdje -->
+    <script src="/_framework/aspnetcore-browser-refresh.js"></script>
+    <script src="_framework/blazor.web.js"></script>
+
+    <!-- TOČNO OVDJE ZALIJEPITE SCRIPT ZA PDF -->
+    <script>
+        let pdfWindow = null;
+
+        window.preparePdfWindow = () => {
+        pdfWindow = window.open("about:blank", "_blank");
+        };
+
+        window.viewPdfFromStream = async (contentStreamReference) => {
+        if (!pdfWindow) return;
+
+        try {
+        const arrayBuffer = await contentStreamReference.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+
+        pdfWindow.location.href = url;
+        } catch (error) {
+        console.error("Greška prilikom učitavanja PDF-a:", error);
+        pdfWindow.close();
+        }
+        };
+    </script>
+</body>
+
+</html>
