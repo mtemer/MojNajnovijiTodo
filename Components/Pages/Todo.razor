@@ -1,6 +1,7 @@
 ﻿@page "/"
 @rendermode Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer
 @using Microsoft.EntityFrameworkCore
+@using TodoList
 
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
 
@@ -50,10 +51,10 @@
 </div>
 
 @code {
-    private List<TodoList.TodoItem> todos = [];
+    private List<TodoItem> todos = [];
     private string syncStatus = "";
 
-    [Inject] private IDbContextFactory<TodoList.TodoDbContext> DbFactory { get; set; } = default!;
+    [Inject] private IDbContextFactory<TodoDbContext> DbFactory { get; set; } = default!;
     [Inject] private Microsoft.JSInterop.IJSRuntime JS { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
@@ -63,7 +64,7 @@
         todos = await context.Todos.ToListAsync();
     }
 
-    private async Task ViewPdf(TodoList.TodoItem todo)
+    private async Task ViewPdf(TodoItem todo)
     {
         if (todo.PdfContent != null)
         {
@@ -74,7 +75,7 @@
         }
     }
 
-    private async Task ToggleDone(TodoList.TodoItem todo, ChangeEventArgs e)
+    private async Task ToggleDone(TodoItem todo, ChangeEventArgs e)
     {
         todo.IsDone = (bool)(e.Value ?? false);
         using var context = DbFactory.CreateDbContext();
@@ -96,11 +97,11 @@
                 await stream.CopyToAsync(fs);
             }
 
-            List<TodoList.TodoItem> stavkeZaPrenijeti = [];
-            var optionsBuilder = new DbContextOptionsBuilder<TodoList.TodoDbContext>();
+            List<TodoItem> stavkeZaPrenijeti = [];
+            var optionsBuilder = new DbContextOptionsBuilder<TodoDbContext>();
             optionsBuilder.UseSqlite($"Data Source={tempPath}");
             
-            using (var tempContext = new TodoList.TodoDbContext(optionsBuilder.Options))
+            using (var tempContext = new TodoDbContext(optionsBuilder.Options))
             {
                 stavkeZaPrenijeti = await tempContext.Todos.ToListAsync();
             }
@@ -113,7 +114,7 @@
 
                 foreach (var stavka in stavkeZaPrenijeti)
                 {
-                    var novaStavka = new TodoList.TodoItem
+                    var novaStavka = new TodoItem
                     {
                         Title = stavka.Title,
                         Sifra = stavka.Sifra,
@@ -140,6 +141,6 @@
 
     private string GetDatabasePath()
     {
-        return "todo.db (Aktivna Docker baza)";
+        return "todonova.db (Aktivna Docker baza)";
     }
 }
