@@ -1,78 +1,40 @@
 using Microsoft.EntityFrameworkCore;
-using TodoList.Components;
+using TodoList;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Dodavanje servisa kontejneru (Očišćeno od duplog koda)
+// 1. Dodajemo Blazor Server servise (Bez WebAssembly klijenta)
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents()
-    .AddInteractiveWebAssemblyComponents();
+    .AddInteractiveServerComponents();
 
-// aplikacija i lokalno i na webu čita datoteku todo.db iz mape same aplikacije.
-// 2. Registracija SQLite baze podataka kompatibilna s Dockerom
+// 2. Registracija SQLite baze podataka
 builder.Services.AddDbContextFactory<TodoDbContext>(options =>
 {
     if (builder.Environment.IsDevelopment())
     {
-        // Lokalni rad u Visual Studiju
         string fiksnaLokalnaPutanja = @"C:\Users\Miljenko Temer\source\repos\TodoList\TodoList\todonova.db";
         options.UseSqlite($"Data Source={fiksnaLokalnaPutanja}");
     }
     else
     {
-        // NA RAILWAYU (Docker Linux): Čitamo iz mape aplikacije bez fiksnih Windows staza
-        string prodDbPath = Path.Combine(AppContext.BaseDirectory, "todonova.db");
+        string prodDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todo.db");
         options.UseSqlite($"Data Source={prodDbPath}");
     }
 });
 
-// Osigurajte da se ovi servisi nalaze u vašem Program.cs prije builder.Build();
-builder.Services.AddAntiforgery();
-builder.Services.AddDataProtection();
-
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseWebAssemblyDebugging();
-}
-else
+// 3. Konfiguracija HTTP zahtjeva (Bez HttpsRedirection-a koji ruši Linux)
+if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    app.UseHsts();
 }
 
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-//app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseAntiforgery();
-app.MapStaticAssets();
 
+// 4. Mapiranje komponenti isključivo za Server
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode()
-    .AddInteractiveWebAssemblyRenderMode()
-    .AddAdditionalAssemblies(typeof(TodoList.Client._Imports).Assembly);
-
-// PRIVREMENI KOD ZA PRISILNO ČIŠĆENJE WEB BAZE
-using (var scope = app.Services.CreateScope())
-{
-    var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<TodoDbContext>>();
-    using var context = dbFactory.CreateDbContext();
-
-    // Pokrećemo ovaj kod SAMO na Railwayu (u produkciji)
-    if (!app.Environment.IsDevelopment())
-    {
-        // 1. Brišemo apsolutno sve stare prastare zapise iz tablice
-        context.Database.ExecuteSqlRaw("DELETE FROM Todos;");
-
-        // 2. Ručno ubacujemo vašu jednu jedinu ispravnu stavku s računala
-        // (Promijenite tekstove ispod ako se vaša stavka zove drugačije)
-        context.Database.ExecuteSqlRaw(
-            "INSERT INTO Todos (Title, Sifra, IsDone) VALUES ('iunjimiu', 'AA-BB-01', 0);"
-        );
-    }
-}
-
-app.UseAntiforgery();
+    .AddInteractiveServerRenderMode();
 
 app.Run();
