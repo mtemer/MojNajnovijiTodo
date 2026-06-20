@@ -35,7 +35,7 @@ app.UseStaticFiles();
 app.UseAntiforgery();
 
 // 4. Mapiranje komponenti isključivo za Server
-app.MapRazorComponents<App>()
+app.MapRazorComponents<TodoList.Components.App>() // <-- ISPRAVLJENO S PUNOM STAZOM
     .AddInteractiveServerRenderMode();
 
 app.Run();
