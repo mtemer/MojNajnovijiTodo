@@ -1,3 +1,4 @@
+using TodoList.Components; // <-- DODAJTE OVAJ TOČAN RETAK NA SAMI VRH
 using Microsoft.EntityFrameworkCore;
 using TodoList;
 
