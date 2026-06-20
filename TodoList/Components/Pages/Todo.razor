@@ -14,17 +14,6 @@
     <strong>Lokacija baze podataka na poslužitelju:</strong> <code style="background: white; padding: 2px 4px;">@GetDatabasePath()</code>
 </div>
 
-<!-- LOKALNI ALAT: Gumb za izvlačenje baze iz memorije dok aplikacija radi -->
-@if (Env.IsDevelopment())
-{
-    <div style="margin-bottom: 20px; padding: 10px; background-color: #e3f2fd; border: 1px solid #90caf9; border-radius: 4px;">
-        <strong>Alat za spašavanje lokalne baze:</strong>
-        <button @onclick="PreuzmiStvarnuBazu" style="margin-left: 10px; background-color: #2196F3; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer;">
-            💾 Preuzmi ispravnu bazu na računalo
-        </button>
-    </div>
-}
-
 <ul>
     @foreach (var todo in todos)
     {
@@ -104,6 +93,24 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            using var context = DbFactory.CreateDbContext();
+
+            // KONAČNI POPRAVAK ZA GREŠKU 500: Ako tablica ne postoji na serveru, EF Core će je sam stvoriti!
+            await context.Database.EnsureCreatedAsync();
+
+            todos = await context.Todos.ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            // Ako se dogodi bilo kakva greška, spremit ćemo je u status da je vidite na ekranu
+            syncStatus = $"Greška pri pokretanju baze: {ex.Message}";
+        }
+    }
+
+    private async Task UcitajPodatkeIzBaze()
+    {
         using var context = DbFactory.CreateDbContext();
         todos = await context.Todos.ToListAsync();
     }
@@ -130,7 +137,7 @@ else
             using var context = DbFactory.CreateDbContext();
             context.Todos.Add(newItem);
             await context.SaveChangesAsync();
-            todos.Add(newItem);
+            await UcitajPodatkeIzBaze();
             newTodo = string.Empty; newSifra = string.Empty; newTodoDueDate = null; uploadedPdfContent = null; uploadedPdfFileName = null;
         }
     }
@@ -159,69 +166,100 @@ else
         using var context = DbFactory.CreateDbContext();
         context.Todos.Remove(todoToRemove);
         await context.SaveChangesAsync();
-        todos.Remove(todoToRemove);
+        await UcitajPodatkeIzBaze();
     }
 
-    // Metoda koja prisilno gura ispravnu datoteku na server
+    // TEKSTUALNA SINKRONIZACIJA BEZ KORIŠTENJA PRODUKCIJSKOG FILE LOCKA
     private async Task UploadDatabaseToServer(InputFileChangeEventArgs e)
     {
         try
         {
             var file = e.File;
-            if (file != null)
+            if (file == null)
             {
-                // Spremamo bazu pod privremenim novim nazivom da izbjegnemo lock
-                var targetPath = "/app/todonova_web.db";
+                syncStatus = "❌ Datoteka nije odabrana.";
+                return;
+            }
 
-                using var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
-                using var fs = new FileStream(targetPath, FileMode.Create, FileAccess.Write);
+            syncStatus = "⏳ Sinkronizacija je započela... Čitam podatke...";
+            StateHasChanged();
+
+            // 1. Čitamo poslanu bazu privremeno u memoriju računala
+            var tempPath = Path.GetTempFileName();
+            using (var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024))
+            {
+                using var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write);
                 await stream.CopyToAsync(fs);
+            }
 
-                // PRISILNO PREBACIVANJE NA NOVU DATOTEKU
-                using (var context = DbFactory.CreateDbContext())
+            // 2. Izvlačimo stavke i PDF-ove iz te poslane datoteke
+            List<TodoItem> stavkeZaPrenijeti = [];
+            var optionsBuilder = new DbContextOptionsBuilder<TodoDbContext>();
+            optionsBuilder.UseSqlite($"Data Source={tempPath}");
+
+            try
+            {
+                using (var tempContext = new TodoDbContext(optionsBuilder.Options))
                 {
-                    // Zatvaramo staru vezu nad todo.db
-                    await context.Database.CloseConnectionAsync();
+                    stavkeZaPrenijeti = await tempContext.Todos.ToListAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                syncStatus = $"❌ Greška prilikom čitanja poslane datoteke: {ex.Message}. Jeste li odabrali ispravnu .db datoteku?";
+                if (File.Exists(tempPath)) File.Delete(tempPath);
+                return;
+            }
 
-                    // Na razini Linuxa prepisujemo todo.db novom datotekom dok je veza zatvorena
-                    if (File.Exists("/app/todonova_web.db"))
+            if (File.Exists(tempPath)) File.Delete(tempPath);
+
+            syncStatus = $"⏳ Pročitano {stavkeZaPrenijeti.Count} stavki. Brišem staru web bazu...";
+            StateHasChanged();
+
+            // 3. Spajamo se na produkcijski SQL kontext na Railwayu
+            using (var prodContext = DbFactory.CreateDbContext())
+            {
+                // Koristimo transakciju kako bismo osigurali da se sve izvrši odjednom
+                using var transaction = await prodContext.Database.BeginTransactionAsync();
+                try
+                {
+                    // Čistimo staru tablicu
+                    await prodContext.Database.ExecuteSqlRawAsync("DELETE FROM Todos;");
+
+                    // Ubacujemo stavku po stavku zajedno s PDF dokumentima
+                    foreach (var stavka in stavkeZaPrenijeti)
                     {
-                        File.Copy("/app/todonova_web.db", "/app/todo.db", true);
-                        File.Delete("/app/todonova_web.db"); // Brišemo privremenu
+                        var novaStavka = new TodoItem
+                        {
+                            Title = stavka.Title,
+                            Sifra = stavka.Sifra,
+                            IsDone = stavka.IsDone,
+                            DueDate = stavka.DueDate,
+                            PdfContent = stavka.PdfContent,
+                            PdfFileName = stavka.PdfFileName
+                        };
+                        prodContext.Todos.Add(novaStavka);
                     }
 
-                    // Praznimo cache i ponovno učitavamo podatke
-                    context.ChangeTracker.Clear();
-                    todos = await context.Todos.ToListAsync();
+                    await prodContext.SaveChangesAsync();
+                    await transaction.CommitAsync();
                 }
-
-                syncStatus = "🚀 Podaci su uspješno sinkronizirani! Obje stavke su prenesene.";
-                StateHasChanged();
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    syncStatus = $"❌ SQL Greška na serveru: {ex.Message}. Provjerite jesu li migracije baze usklađene.";
+                    return;
+                }
             }
+
+            // 4. Osvježavamo sučelje na ekranu
+            await UcitajPodatkeIzBaze();
+            syncStatus = $"🚀 Sinkronizacija uspješna! Na webu se sada nalazi ukupno {todos.Count} stavki.";
+            StateHasChanged();
         }
         catch (Exception ex)
         {
-            syncStatus = $"Greška prilikom sinkronizacije: {ex.Message}";
-        }
-    }
-
-    // Pomoćna metoda za lokalno spašavanje baze preko PDF prozora
-    private async Task PreuzmiStvarnuBazu()
-    {
-        string putanjaDoBaze = "/app/todo.db";
-        if (Env.IsDevelopment())
-        {
-            string projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
-            putanjaDoBaze = Path.Combine(projectRoot, "todo.db");
-        }
-
-        if (File.Exists(putanjaDoBaze))
-        {
-            byte[] bajtoviBaze = await File.ReadAllBytesAsync(putanjaDoBaze);
-            await JS.InvokeVoidAsync("preparePdfWindow");
-            using var stream = new MemoryStream(bajtoviBaze);
-            using var streamRef = new DotNetStreamReference(stream);
-            await JS.InvokeVoidAsync("viewPdfFromStream", streamRef);
+            syncStatus = $"❌ Kritična greška u aplikaciji: {ex.Message}";
         }
     }
 
@@ -230,8 +268,8 @@ else
         if (Env.IsDevelopment())
         {
             string projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
-            return Path.Combine(projectRoot, "todo.db");
+            return Path.Combine(projectRoot, "todonova.db");
         }
-        return "/app/todo.db";
+        return "todo.db (Aktivna Docker baza)";
     }
 }

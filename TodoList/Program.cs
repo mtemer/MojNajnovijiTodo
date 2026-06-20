@@ -26,6 +26,10 @@ builder.Services.AddDbContextFactory<TodoDbContext>(options =>
     }
 });
 
+// Osigurajte da se ovi servisi nalaze u vašem Program.cs prije builder.Build();
+builder.Services.AddAntiforgery();
+builder.Services.AddDataProtection();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -75,5 +79,7 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<TodoDbContext>();
     dbContext.Database.Migrate();
 }
+
+app.UseAntiforgery();
 
 app.Run();
