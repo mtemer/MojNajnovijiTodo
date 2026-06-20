@@ -2,18 +2,17 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Registracija Blazor Server komponenti S TOČNOM .NET 10 PODRŠKOM ZA VELIKE PDF-ove (100MB)
+// 1. Registracija Blazor Server komponenti s podrškom za velike PDF poruke (100MB)
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Točna .NET 10 sintaksa za podizanje limita paketa na SignalR kanalu
 builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options => 
 {
     options.MaximumReceiveMessageSize = 1024 * 1024 * 100; // 100 MB
 });
 
-// 2. Registracija SQLite baze podataka s punom stazom za DbContext
-builder.Services.AddDbContextFactory<TodoDbContext>(options =>
+// 2. Registracija SQLite baze podataka s punom, nepogrešivom stazom za kontekst
+builder.Services.AddDbContextFactory<TodoList.TodoDbContext>(options =>
 {
     if (builder.Environment.IsDevelopment())
     {
@@ -29,10 +28,10 @@ builder.Services.AddDbContextFactory<TodoDbContext>(options =>
 
 var app = builder.Build();
 
-// Otvaranje i kreiranje baze pri pokretanju aplikacije
+// Otvaranje i sigurno kreiranje baze pri pokretanju aplikacije na poslužitelju
 using (var scope = app.Services.CreateScope())
 {
-    var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<TodoDbContext>>();
+    var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<TodoList.TodoDbContext>>();
     using var context = dbFactory.CreateDbContext();
     await context.Database.EnsureCreatedAsync();
 
@@ -51,7 +50,7 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseAntiforgery();
 
-// 4. Mapiranje komponenti na App klasu
+// 4. Mapiranje komponenti s punom stazom
 app.MapRazorComponents<TodoList.Components.App>()
     .AddInteractiveServerRenderMode();
 
