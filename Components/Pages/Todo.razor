@@ -1,6 +1,7 @@
 @page "/"
 @rendermode Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer
 @using Microsoft.EntityFrameworkCore
+@using TodoList
 @using System.Text.Json
 @using System.Text.RegularExpressions
 
@@ -41,7 +42,6 @@
                 </button>
             }
 
-            <!-- GUMB ZA BRISANJE JE SADA TRAJNO I UVIJEK OTKLJUČAN LOKALNO -->
             @if (Env.IsDevelopment())
             {
                 <button @onclick="() => DeleteTodo(todo)" style="margin-left: 15px; color: white; background-color: #d32f2f; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 0.85em;">
@@ -97,7 +97,8 @@ else
     else
     {
         <p style="font-size: 0.9em; margin-bottom: 10px;">Zalijepite tekst kopiran s računala u polje ispod i kliknite Uvezi:</p>
-        <textarea @bind="jsonTekst" placeholder="Ovdje desni klik -> Zalijepi (Paste)" style="width: 100%; height: 100px; margin-bottom: 10px; font-family: monospace; font-size: 0.85em;"></textarea>
+        @* KONAČNI POPRAVAK ZA PDF: Običan HTML textarea s ID-om (Nema Blazor preopterećenja) *@
+        <textarea id="jsonInputBox" placeholder="Ovdje desni klik -> Zalijepi (Paste)" style="width: 100%; height: 100px; margin-bottom: 10px; font-family: monospace; font-size: 0.85em;"></textarea>
         <button @onclick="UveziPodatkeIzTeksta" style="background-color: #4CAF50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;">
             📥 Uvezi podatke na Web
         </button>
@@ -111,7 +112,6 @@ else
 
 @code {
     private List<TodoItem> todos = [];
-    private string jsonTekst = "";
     private string syncStatus = "";
     private string validationError = "";
 
@@ -137,7 +137,7 @@ else
         var file = e.File;
         if (file != null && file.ContentType == "application/pdf")
         {
-            long maxFileSize = 5242880 * 10; // Povećano na 50MB za unos lokalno
+            long maxFileSize = 5242880 * 10; // 50MB
             using var stream = file.OpenReadStream(maxFileSize);
             using var memoryStream = new MemoryStream();
             await stream.CopyToAsync(memoryStream);
@@ -237,36 +237,41 @@ else
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(jsonTekst)) return;
-            var stavkeZaUvoz = JsonSerializer.Deserialize<List<TodoItem>>(jsonTekst);
-            if (stavkeZaUvoz == null) return;
+            // Čitamo tekst direktno iz DOM memorije preko JavaScripta (Zaobilazi Blazor limit)
+            var uvecaniTekst = await JS.InvokeAsync<string>("eval", "document.getElementById('jsonInputBox').value");
 
+            if (string.IsNullOrWhiteSpace(uvecaniTekst))
+            {
+                syncStatus = "❌ Polje za tekst je prazno. Molimo zalijepite kôd.";
+                return;           
+            }
+            var stavkeZaUvoz = JsonSerializer.Deserialize<System.Collections.Generic.List<TodoItem>>(uvecaniTekst);
+            if (stavkeZaUvoz == null) return;
             using (var prodContext = DbFactory.CreateDbContext())
             {
                 await prodContext.Database.ExecuteSqlRawAsync("DELETE FROM Todos;");
                 foreach (var stavka in stavkeZaUvoz)
-                { 
-                    var novaStavka = new TodoItem 
-                    { 
-                        Title = stavka.Title, 
-                        Sifra = stavka.Sifra, 
+                { var novaStavka = new TodoItem 
+                    { Title = stavka.Title, Sifra = stavka.Sifra,
                         IsDone = stavka.IsDone, 
                         DueDate = stavka.DueDate,
-                        PdfContent = stavka.PdfContent, 
-                        PdfFileName = stavka.PdfFileName 
-                    }; 
+                        PdfContent = stavka.PdfContent,
+                        PdfFileName = stavka.PdfFileName
+                    };
                     prodContext.Todos.Add(novaStavka);
                 }
-                await prodContext.SaveChangesAsync(); 
+                await prodContext.SaveChangesAsync();
                 todos = await prodContext.Todos.ToListAsync();
             }
-            jsonTekst = "";
-            syncStatus = "🚀 Sinkronizacija uspješna!";
+            // Čistimo tekstualni okvir preko JS-a
+            await JS.InvokeVoidAsync("eval", "document.getElementById('jsonInputBox').value = ''");
+            syncStatus = $"🚀 Uspjeh! Na webu se sada nalaze sve {todos.Count} stavke.";
             StateHasChanged();
         }
         catch (Exception ex)
-        { 
+        {
             syncStatus = $"❌ Greška: {ex.Message}";
         }
-    }
-}
+        }
+        }
+
