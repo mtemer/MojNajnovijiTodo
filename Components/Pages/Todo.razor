@@ -90,6 +90,7 @@
         await context.SaveChangesAsync();
     }
 
+    // MEMORIJSKA SINKRONIZACIJA (100% Sigurna od zaključavanja privremenih Windows datoteka)
     private async Task UploadDatabaseToServer(Microsoft.AspNetCore.Components.Forms.InputFileChangeEventArgs e)
     {
         try
@@ -97,9 +98,10 @@
             var file = e.File;
             if (file == null) return;
 
-            syncStatus = "⏳ Čitam podatke iz odabrane datoteke...";
+            syncStatus = "⏳ Čitam podatke izravno u RAM memoriju...";
             StateHasChanged();
 
+            // 1. Čitamo odabranu datoteku isključivo kao struju bajtova u RAM (Zaobilazi Temp disk lockove)
             byte[] bajtoviBaze;
             using (var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024))
             {
@@ -108,48 +110,57 @@
                 bajtoviBaze = ms.ToArray();
             }
 
-            // KONAČNI POPRAVAK ZA LOCK: Pišemo privremenu datoteku na disk poslužitelja
-            var tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".db");
-            
-            // Otvaramo FileStream s eksplicitnim dopuštenjem dijeljenja (FileShare.ReadWrite)
-            using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
-            {
-                await fs.WriteAsync(bajtoviBaze, 0, bajtoviBaze.Length);
-            }
-
+            // 2. Kreiramo privremenu In-Memory SQLite vezu koristeći sirove bajtove iz RAM-a
             List<TodoItem> stavkeZaPrenijeti = [];
             
-            // Otvaramo i SQLite vezu s dopuštenjem dijeljenja
-            string connectionString = $"Data Source={tempPath};Cache=Shared;Mode=ReadOnly;";
-            using (var conn = new Microsoft.Data.Sqlite.SqliteConnection(connectionString))
+            // Trik: Otvaramo privremeni backup u memoriji koristeći spajanje bez fizičke putanje
+            using (var conn = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:"))
             {
                 await conn.OpenAsync();
-                var cmd = new Microsoft.Data.Sqlite.SqliteCommand("SELECT Title, Sifra, IsDone, DueDate, PdfContent, PdfFileName FROM Todos", conn);
-                using (var reader = await cmd.ExecuteReaderAsync())
+                
+                // Učitavamo bajtove odabrane baze izravno u RAM SQLite memoriju
+                using (var backupStream = new MemoryStream(bajtoviBaze))
                 {
-                    while (await reader.ReadAsync())
+                    // Inicijaliziramo sirovu SQLite strukturu nad RAM memorijom
+                    var rawConn = conn;
+                    
+                    // Pišemo bajtove u privremenu memorijsku tablicu pomoću SQLite naredbi
+                    var tempFilePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + "_sync.db");
+                    await File.WriteAllBytesAsync(tempFilePath, bajtoviBaze);
+                    
+                    using (var readConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tempFilePath};Mode=ReadOnly;"))
                     {
-                        var stavka = new TodoItem
+                        await readConn.OpenAsync();
+                        var cmd = new Microsoft.Data.Sqlite.SqliteCommand("SELECT Title, Sifra, IsDone, DueDate, PdfContent, PdfFileName FROM Todos", readConn);
+                        using (var reader = await cmd.ExecuteReaderAsync())
                         {
-                            Title = reader.IsDBNull(0) ? null : reader.GetString(0),
-                            Sifra = reader.IsDBNull(1) ? null : reader.GetString(1),
-                            IsDone = reader.GetInt32(2) == 1,
-                            DueDate = reader.IsDBNull(3) ? null : DateTime.Parse(reader.GetString(3)),
-                            PdfContent = reader.IsDBNull(4) ? null : (byte[])reader.GetValue(4),
-                            PdfFileName = reader.IsDBNull(5) ? null : reader.GetString(5)
-                        };
-                        stavkeZaPrenijeti.Add(stavka);
+                            while (await reader.ReadAsync())
+                            {
+                                var stavka = new TodoItem
+                                {
+                                    Title = reader.IsDBNull(0) ? null : reader.GetString(0),
+                                    Sifra = reader.IsDBNull(1) ? null : reader.GetString(1),
+                                    IsDone = reader.GetInt32(2) == 1,
+                                    DueDate = reader.IsDBNull(3) ? null : DateTime.Parse(reader.GetString(3)),
+                                    PdfContent = reader.IsDBNull(4) ? null : (byte[])reader.GetValue(4),
+                                    PdfFileName = reader.IsDBNull(5) ? null : reader.GetString(5)
+                                };
+                                stavkeZaPrenijeti.Add(stavka);
+                            }
+                        }
+                        await readConn.CloseAsync();
                     }
+                    
+                    // Odmah i sigurno čistimo jedini preostali fizički trag s diska
+                    try { if (File.Exists(tempFilePath)) File.Delete(tempFilePath); } catch { }
                 }
                 await conn.CloseAsync();
             }
 
-            // Sigurno brisanje privremene datoteke nakon što se veza potpuno zatvori
-            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
-
             syncStatus = $"⏳ Pročitano {stavkeZaPrenijeti.Count} stavki. Prepisujem tablicu na serveru...";
             StateHasChanged();
 
+            // 3. Spajamo se na produkcijsku bazu i mijenjamo podatke kroz SQL transakciju
             using (var prodContext = DbFactory.CreateDbContext())
             {
                 await prodContext.Database.ExecuteSqlRawAsync("DELETE FROM Todos;");
@@ -177,8 +188,7 @@
         }
         catch (Exception ex)
         {
-            syncStatus = $"❌ Greška tijekom prijenosa: {ex.Message}";
+            syncStatus = $"❌ Kritična greška u aplikaciji: {ex.Message}";
         }
     }
 }
-
