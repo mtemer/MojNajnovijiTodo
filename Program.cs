@@ -73,13 +73,6 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Vraćamo automatsku migraciju kako bi Railway primijenio fiksni kod iz DbContexta
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<TodoDbContext>();
-    dbContext.Database.Migrate();
-}
-
 app.UseAntiforgery();
 
 app.Run();
