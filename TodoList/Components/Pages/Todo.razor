@@ -170,25 +170,40 @@ else
             var file = e.File;
             if (file != null)
             {
-                // Docker lokacija prikazana na vašoj slici (/app/todo.db)
-                var targetPath = "/app/todo.db";
+                // Spremamo bazu pod privremenim novim nazivom da izbjegnemo lock
+                var targetPath = "/app/todonova_web.db";
 
                 using var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
                 using var fs = new FileStream(targetPath, FileMode.Create, FileAccess.Write);
                 await stream.CopyToAsync(fs);
 
-                syncStatus = "🚀 Stara baza je pobijeđena! Podaci su preneseni. Osvježite stranicu.";
+                // PRISILNO PREBACIVANJE NA NOVU DATOTEKU
+                using (var context = DbFactory.CreateDbContext())
+                {
+                    // Zatvaramo staru vezu nad todo.db
+                    await context.Database.CloseConnectionAsync();
 
-                using var context = DbFactory.CreateDbContext();
-                todos = await context.Todos.ToListAsync();
+                    // Na razini Linuxa prepisujemo todo.db novom datotekom dok je veza zatvorena
+                    if (File.Exists("/app/todonova_web.db"))
+                    {
+                        File.Copy("/app/todonova_web.db", "/app/todo.db", true);
+                        File.Delete("/app/todonova_web.db"); // Brišemo privremenu
+                    }
+
+                    // Praznimo cache i ponovno učitavamo podatke
+                    context.ChangeTracker.Clear();
+                    todos = await context.Todos.ToListAsync();
+                }
+
+                syncStatus = "🚀 Podaci su uspješno sinkronizirani! Obje stavke su prenesene.";
+                StateHasChanged();
             }
         }
         catch (Exception ex)
         {
-            syncStatus = $"Greška: {ex.Message}";
+            syncStatus = $"Greška prilikom sinkronizacije: {ex.Message}";
         }
     }
-
     // Pomoćna metoda za lokalno spašavanje baze preko PDF prozora
     private async Task PreuzmiStvarnuBazu()
     {

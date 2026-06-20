@@ -1,0 +1,10 @@
+{
+  "$schema": "https://railpack.com",
+  "provider": "dotnet",
+  "packages": {
+    "dotnet": "10.0"
+  },
+  "build": {
+    "project": "TodoList/TodoList.csproj"
+  }
+}
