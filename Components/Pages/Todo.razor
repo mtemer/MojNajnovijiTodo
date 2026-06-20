@@ -108,11 +108,20 @@
                 bajtoviBaze = ms.ToArray();
             }
 
+            // KONAČNI POPRAVAK ZA LOCK: Pišemo privremenu datoteku na disk poslužitelja
             var tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".db");
-            await File.WriteAllBytesAsync(tempPath, bajtoviBaze);
+            
+            // Otvaramo FileStream s eksplicitnim dopuštenjem dijeljenja (FileShare.ReadWrite)
+            using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
+            {
+                await fs.WriteAsync(bajtoviBaze, 0, bajtoviBaze.Length);
+            }
 
             List<TodoItem> stavkeZaPrenijeti = [];
-            using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tempPath}"))
+            
+            // Otvaramo i SQLite vezu s dopuštenjem dijeljenja
+            string connectionString = $"Data Source={tempPath};Cache=Shared;Mode=ReadOnly;";
+            using (var conn = new Microsoft.Data.Sqlite.SqliteConnection(connectionString))
             {
                 await conn.OpenAsync();
                 var cmd = new Microsoft.Data.Sqlite.SqliteCommand("SELECT Title, Sifra, IsDone, DueDate, PdfContent, PdfFileName FROM Todos", conn);
@@ -135,7 +144,8 @@
                 await conn.CloseAsync();
             }
 
-            if (File.Exists(tempPath)) File.Delete(tempPath);
+            // Sigurno brisanje privremene datoteke nakon što se veza potpuno zatvori
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
 
             syncStatus = $"⏳ Pročitano {stavkeZaPrenijeti.Count} stavki. Prepisujem tablicu na serveru...";
             StateHasChanged();
@@ -171,3 +181,4 @@
         }
     }
 }
+
