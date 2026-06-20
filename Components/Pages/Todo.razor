@@ -1,18 +1,16 @@
-﻿@page "/"
+@page "/"
 @rendermode Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer
 @using Microsoft.EntityFrameworkCore
 @using TodoList
 
-@* DODAJTE OVA DVA RETKA ISPOD AKO NEDOSTAJU: *@
-@inject IDbContextFactory<TodoDbContext> DbFactory
-@inject Microsoft.JSInterop.IJSRuntime JS
-@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Env  @* <-- ISPRAVLJENO (Dodana injekcija za Env) *@
-
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
 
-<div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
-    <strong>Status aktivne baze:</strong> <code style="background: white; padding: 2px 4px;">Uspješno povezano na poslužitelj</code>
-</div>
+@if (Env.IsDevelopment())
+{
+    <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
+        <strong>Status aktivne baze:</strong> <code style="background: white; padding: 2px 4px;">Uspješno povezano na poslužitelj</code>
+    </div>
+}
 
 <ul>
     @foreach (var todo in todos)
@@ -45,7 +43,6 @@
     }
 </ul>
 
-@* DODAJEMO UVJET: Sada je ovaj prozor vidljiv SAMO lokalno na vašem računalu, a na webu je skriven! *@
 @if (Env.IsDevelopment())
 {
     <div style="margin-top: 40px; padding: 15px; border: 2px dashed #ff9800; background-color: #fffde7; border-radius: 8px; max-width: 400px;">
@@ -65,6 +62,7 @@
 
     [Inject] private IDbContextFactory<TodoDbContext> DbFactory { get; set; } = default!;
     [Inject] private Microsoft.JSInterop.IJSRuntime JS { get; set; } = default!;
+    [Inject] private Microsoft.AspNetCore.Hosting.IWebHostEnvironment Env { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
@@ -92,7 +90,6 @@
         await context.SaveChangesAsync();
     }
 
-    // IZRAVNI NEPOGREŠIVI SQLite ČITAČ PODATAKA (Bypassa lockove i migracije)
     private async Task UploadDatabaseToServer(Microsoft.AspNetCore.Components.Forms.InputFileChangeEventArgs e)
     {
         try
@@ -103,7 +100,6 @@
             syncStatus = "⏳ Čitam podatke iz odabrane datoteke...";
             StateHasChanged();
 
-            // 1. Čitamo bazu isključivo kao niz bajtova u RAM (razbija Windows File Lock)
             byte[] bajtoviBaze;
             using (var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024))
             {
@@ -112,11 +108,9 @@
                 bajtoviBaze = ms.ToArray();
             }
 
-            // 2. Pišemo privremenu datoteku na disk poslužitelja
             var tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".db");
             await File.WriteAllBytesAsync(tempPath, bajtoviBaze);
 
-            // 3. Koristimo izravnu SQLite vezu i ručno izvlačimo podatke iz tablice Todos sa slike
             List<TodoItem> stavkeZaPrenijeti = [];
             using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tempPath}"))
             {
@@ -146,7 +140,6 @@
             syncStatus = $"⏳ Pročitano {stavkeZaPrenijeti.Count} stavki. Prepisujem tablicu na serveru...";
             StateHasChanged();
 
-            // 4. Upisujemo podatke u produkcijsku bazu kroz čisti SQL
             using (var prodContext = DbFactory.CreateDbContext())
             {
                 await prodContext.Database.ExecuteSqlRawAsync("DELETE FROM Todos;");
@@ -176,17 +169,5 @@
         {
             syncStatus = $"❌ Greška tijekom prijenosa: {ex.Message}";
         }
-    }
-
-    private string GetDatabasePath()
-    {
-        return "todonova.db (Aktivna produkcijska baza)";
-    }
-}
-
-
-    private string GetDatabasePath()
-    {
-        return "todonova.db (Aktivna Docker baza)";
     }
 }
