@@ -2,11 +2,12 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Registracija Blazor Server komponenti
+// 1. Registracija Blazor Server komponenti S PODRŠKOM ZA VELIKE PDF DOKUMENTE (100MB)
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents()
+    .AddHubOptions(options => options.MaxReceivedMessageSize = 1024 * 1024 * 100);
 
-// 2. Registracija SQLite baze podataka s čistim connection stringom
+// 2. Registracija SQLite baze podataka
 builder.Services.AddDbContextFactory<TodoList.TodoDbContext>(options =>
 {
     if (builder.Environment.IsDevelopment())
@@ -23,16 +24,13 @@ builder.Services.AddDbContextFactory<TodoList.TodoDbContext>(options =>
 
 var app = builder.Build();
 
-// KONAČNI POPRAVAK ZA PRISILNO URADNJU NA DISK LOKALNO
+// Otvaranje i kreiranje baze pri pokretanju
 using (var scope = app.Services.CreateScope())
 {
     var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<TodoList.TodoDbContext>>();
     using var context = dbFactory.CreateDbContext();
-    
-    // Prisno kreiramo bazu ako ne postoji
     await context.Database.EnsureCreatedAsync();
 
-    // Ako radimo lokalno na računalu, prisilno gasimo privremeni journal cache
     if (app.Environment.IsDevelopment())
     {
         await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=DELETE;");
