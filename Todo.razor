@@ -1,10 +1,11 @@
 ﻿@page "/"
-@rendermode RenderMode.InteractiveServer  @* <-- ISPRAVLJENO (Dodana riječ RenderMode.) *@
+@rendermode InteractiveServer
+@using static Microsoft.AspNetCore.Components.Web.RenderMode @* <-- DODAJTE OVAJ TOČAN REDAK *@
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Hosting 
 @using Microsoft.Extensions.Hosting
-@using Microsoft.AspNetCore.Components.Forms  @* <-- DODAJTE OVAJ REDAK (Rješava InputFile grešku) *@
-@using Microsoft.JSInterop                     @* <-- DODAJTE OVAJ REDAK (Rješava IJSRuntime grešku) *@
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
 @inject IDbContextFactory<TodoDbContext> DbFactory
 @inject IJSRuntime JS
 @inject IWebHostEnvironment Env 
