@@ -83,6 +83,7 @@
         await context.SaveChangesAsync();
     }
 
+    // SIGURNI ALGORITAM KOJI RAZBIJA WINDOWS I LINUX LOCK DATOTEKA
     private async Task UploadDatabaseToServer(Microsoft.AspNetCore.Components.Forms.InputFileChangeEventArgs e)
     {
         try
@@ -90,13 +91,23 @@
             var file = e.File;
             if (file == null) return;
 
-            var tempPath = Path.GetTempFileName();
+            syncStatus = "⏳ Čitam datoteku u sigurnu memoriju...";
+            StateHasChanged();
+
+            // 1. Čitamo poslanu datoteku isključivo kao struju bajtova (bypassa File Lock)
+            byte[] bajtoviBaze;
             using (var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024))
             {
-                using var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write);
-                await stream.CopyToAsync(fs);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                bajtoviBaze = ms.ToArray();
             }
 
+            // 2. Pišemo je u privremenu datoteku izvan dosega Visual Studija
+            var tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".db");
+            await File.WriteAllBytesAsync(tempPath, bajtoviBaze);
+
+            // 3. Otvaramo privremenu bazu i izvlačimo podatke
             List<TodoItem> stavkeZaPrenijeti = [];
             var optionsBuilder = new DbContextOptionsBuilder<TodoDbContext>();
             optionsBuilder.UseSqlite($"Data Source={tempPath}");
@@ -106,8 +117,13 @@
                 stavkeZaPrenijeti = await tempContext.Todos.ToListAsync();
             }
 
+            // Odmah brišemo privremeni file
             if (File.Exists(tempPath)) File.Delete(tempPath);
 
+            syncStatus = $"⏳ Pročitano {stavkeZaPrenijeti.Count} stavki. Spremam u glavnu bazu...";
+            StateHasChanged();
+
+            // 4. Upisujemo podatke izravno u aktivni SQL kontekst
             using (var prodContext = DbFactory.CreateDbContext())
             {
                 await prodContext.Database.ExecuteSqlRawAsync("DELETE FROM Todos;");
@@ -127,15 +143,20 @@
                 }
 
                 await prodContext.SaveChangesAsync();
-                todos = await prodContext.Todos.ToListAsync();
             }
 
-            syncStatus = "🚀 Sinkronizacija uspješna! Na webu se sada nalaze obje stavke.";
+            // 5. Osvježavamo listu na ekranu
+            using (var ponovniContext = DbFactory.CreateDbContext())
+            {
+                todos = await ponovniContext.Todos.ToListAsync();
+            }
+
+            syncStatus = $"🚀 Sinkronizacija uspješna! Na ekranu se sada nalaze sve {todos.Count} stavke.";
             StateHasChanged();
         }
         catch (Exception ex)
         {
-            syncStatus = $"Greška prilikom sinkronizacije: {ex.Message}";
+            syncStatus = $"❌ Greška tijekom prijenosa: {ex.Message}";
         }
     }
 
