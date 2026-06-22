@@ -363,3 +363,5 @@ MigrationBackup/
 FodyWeavers.xsd
 # uskličnik znači "nemoj ignorirati"
 !todo.db
+*.db
+*.db-journal
