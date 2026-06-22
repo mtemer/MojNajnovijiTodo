@@ -1,4 +1,6 @@
-﻿public class TodoItem
+﻿namespace TodoList;
+
+public class TodoItem
 {
     // 1. DODAJTE OVAJ REDAK (EF Core će ovo automatski prepoznati kao Primarni Ključ)
     // Nakon dodavanja novog polja u shell pokrenuti naredbu: dotnet ef migrations add AddIdToTodoItem i dotnet ef database update

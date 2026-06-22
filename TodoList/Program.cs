@@ -1,85 +1,57 @@
 using Microsoft.EntityFrameworkCore;
-using TodoList.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Dodavanje servisa kontejneru (Očišćeno od duplog koda)
+// 1. Registracija Blazor Server komponenti s podrškom za velike PDF poruke (100MB)
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents()
-    .AddInteractiveWebAssemblyComponents();
+    .AddInteractiveServerComponents();
 
-// aplikacija i lokalno i na webu čita datoteku todo.db iz mape same aplikacije.
-// 2. Registracija SQLite baze podataka kompatibilna s Dockerom
-builder.Services.AddDbContextFactory<TodoDbContext>(options =>
+builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options =>
+{
+    options.MaximumReceiveMessageSize = 1024 * 1024 * 100; // 100 MB
+});
+
+// 2. Registracija SQLite baze podataka s punom, nepogrešivom stazom za kontekst
+builder.Services.AddDbContextFactory<TodoList.TodoDbContext>(options =>
 {
     if (builder.Environment.IsDevelopment())
     {
-        // Lokalni rad u Visual Studiju
         string fiksnaLokalnaPutanja = @"C:\Users\Miljenko Temer\source\repos\TodoList\TodoList\todonova.db";
-        options.UseSqlite($"Data Source={fiksnaLokalnaPutanja}");
+        options.UseSqlite($"Data Source={fiksnaLokalnaPutanja};");
     }
     else
     {
-        // NA RAILWAYU (Docker Linux): Čitamo iz mape aplikacije bez fiksnih Windows staza
-        string prodDbPath = Path.Combine(AppContext.BaseDirectory, "todonova.db");
+        string prodDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todonova.db");
         options.UseSqlite($"Data Source={prodDbPath}");
     }
 });
 
-// Osigurajte da se ovi servisi nalaze u vašem Program.cs prije builder.Build();
-builder.Services.AddAntiforgery();
-builder.Services.AddDataProtection();
-
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseWebAssemblyDebugging();
-}
-else
-{
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    app.UseHsts();
-}
-
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
-app.UseAntiforgery();
-app.MapStaticAssets();
-
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode()
-    .AddInteractiveWebAssemblyRenderMode()
-    .AddAdditionalAssemblies(typeof(TodoList.Client._Imports).Assembly);
-
-// PRIVREMENI KOD ZA PRISILNO ČIŠĆENJE WEB BAZE
+// Otvaranje i sigurno kreiranje baze pri pokretanju aplikacije na poslužitelju
 using (var scope = app.Services.CreateScope())
 {
-    var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<TodoDbContext>>();
+    var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<TodoList.TodoDbContext>>();
     using var context = dbFactory.CreateDbContext();
+    await context.Database.EnsureCreatedAsync();
 
-    // Pokrećemo ovaj kod SAMO na Railwayu (u produkciji)
-    if (!app.Environment.IsDevelopment())
+    if (app.Environment.IsDevelopment())
     {
-        // 1. Brišemo apsolutno sve stare prastare zapise iz tablice
-        context.Database.ExecuteSqlRaw("DELETE FROM Todos;");
-
-        // 2. Ručno ubacujemo vašu jednu jedinu ispravnu stavku s računala
-        // (Promijenite tekstove ispod ako se vaša stavka zove drugačije)
-        context.Database.ExecuteSqlRaw(
-            "INSERT INTO Todos (Title, Sifra, IsDone) VALUES ('iunjimiu', 'AA-BB-01', 0);"
-        );
+        await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=DELETE;");
     }
 }
 
-// Vraćamo automatsku migraciju kako bi Railway primijenio fiksni kod iz DbContexta
-using (var scope = app.Services.CreateScope())
+// 3. Konfiguracija HTTP cjevovoda
+if (!app.Environment.IsDevelopment())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<TodoDbContext>();
-    dbContext.Database.Migrate();
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
 
+app.UseStaticFiles();
 app.UseAntiforgery();
+
+// 4. Mapiranje komponenti s punom stazom
+app.MapRazorComponents<TodoList.Components.App>()
+    .AddInteractiveServerRenderMode();
 
 app.Run();

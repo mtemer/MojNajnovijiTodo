@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿namespace TodoList;
+
+using Microsoft.EntityFrameworkCore;
 
 //upravlja vezom s bazom podataka
 public class TodoDbContext : DbContext

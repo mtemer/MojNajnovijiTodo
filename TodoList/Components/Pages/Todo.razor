@@ -3,6 +3,7 @@
 @using Microsoft.EntityFrameworkCore
 @using TodoList
 @using System.Text.Json
+@using System.Text.RegularExpressions
 
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
 
@@ -17,13 +18,13 @@
     @foreach (var todo in todos)
     {
         <li style="margin-bottom: 8px; list-style-type: none; display: flex; align-items: center;">
-            <input type="checkbox" checked="@todo.IsDone" @onchange="(e) => ToggleDone(todo, e)" disabled="@(!Env.IsDevelopment())" style="margin-right: 10px;" />
+            <input type="checkbox" checked="@todo.IsDone" @onchange="(e) => ToggleDone(todo, e)" disabled style="margin-right: 10px;" />
 
             <span style="@(todo.IsDone ? "text-decoration: line-through; color: gray;" : "")">
-                @todo.Title
+                @(string.IsNullOrWhiteSpace(todo.Title) ? "(Nema naziva)" : todo.Title)
             </span>
 
-            <span style="margin-left: 10px; font-size: 0.85em; color: #666; background-color: #f0f0f0; padding: 2px 6px; border-radius: 4px;">
+            <span style="margin-left: 10px; font-size: 0.85em; color: #1565c0; background-color: #e3f2fd; font-weight: bold; padding: 2px 6px; border-radius: 4px;">
                 @todo.Sifra
             </span>
 
@@ -43,7 +44,7 @@
 
             @if (Env.IsDevelopment())
             {
-                <button @onclick="() => DeleteTodo(todo)" style="margin-left: 15px; color: red; border: none; background: none; cursor: pointer;">
+                <button @onclick="() => DeleteTodo(todo)" style="margin-left: 15px; color: white; background-color: #d32f2f; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 0.85em;">
                     Briši
                 </button>
             }
@@ -51,17 +52,29 @@
     }
 </ul>
 
-<!-- FORMA ZA UPIS: Sada je trajno otključana i uvijek vidljiva lokalno na računalu -->
 @if (Env.IsDevelopment())
 {
     <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 300px; padding: 15px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 6px;">
         <h4 style="margin-top: 0;">Novi unos</h4>
-        <input placeholder="Upis Šifre" @bind="newSifra" style="padding: 4px;" />
-        <input placeholder="Upis #Dokumenta" @bind="newTodo" style="padding: 4px;" />
-        <input type="date" @bind="newTodoDueDate" style="padding: 4px;" />
-        <label style="font-size: 0.9em; font-weight: bold; margin-top: 5px;">Dodaj PDF dokument:</label>
+        
+        <label style="font-size: 0.85em; font-weight: bold; color: #333;">Šifra (Obavezno, format: AA-BB-01):</label>
+        <input placeholder="npr. AA-BB-01" @bind="newSifra" style="padding: 6px; text-transform: uppercase;" />
+        
+        <label style="font-size: 0.85em; font-weight: bold; color: #333;">Naziv #Dokumenta (Neobavezno):</label>
+        <input placeholder="Upis #Dokumenta" @bind="newTodo" style="padding: 6px;" />
+        
+        <label style="font-size: 0.85em; font-weight: bold; color: #333;">Datum:</label>
+        <input type="date" @bind="newTodoDueDate" style="padding: 6px;" />
+        
+        <label style="font-size: 0.85em; font-weight: bold; color: #333; margin-top: 5px;">Dodaj PDF dokument:</label>
         <Microsoft.AspNetCore.Components.Forms.InputFile OnChange="HandleFileSelected" accept=".pdf" />
-        <button @onclick="AddTodo" style="background-color: #FFDE21; font-weight: bold; padding: 8px; margin-top: 5px; border: 1px solid #ccb11b; border-radius: 4px; cursor: pointer;">Add todo</button>
+        
+        <button @onclick="AddTodo" style="background-color: #FFDE21; font-weight: bold; padding: 8px; margin-top: 10px; border: 1px solid #ccb11b; border-radius: 4px; cursor: pointer;">Add todo</button>
+        
+        @if (!string.IsNullOrEmpty(validationError))
+        {
+            <p style="color: red; font-weight: bold; font-size: 0.85em; margin-top: 5px; margin-bottom: 0;">@validationError</p>
+        }
     </div>
 }
 else
@@ -71,7 +84,6 @@ else
     </p>
 }
 
-<!-- ALAT ZA SINKRONIZACIJU: Kopiranje i uvoz podataka (0% šanse za File Lock) -->
 <div style="margin-top: 40px; padding: 15px; border: 2px dashed #ff9800; background-color: #fffde7; border-radius: 8px; max-width: 500px;">
     <h4 style="margin-top: 0; color: #e65100;">Alat za tekstualnu sinkronizaciju podataka</h4>
     
@@ -85,7 +97,8 @@ else
     else
     {
         <p style="font-size: 0.9em; margin-bottom: 10px;">Zalijepite tekst kopiran s računala u polje ispod i kliknite Uvezi:</p>
-        <textarea @bind="jsonTekst" placeholder="Ovdje desni klik -> Zalijepi (Paste)" style="width: 100%; height: 100px; margin-bottom: 10px; font-family: monospace; font-size: 0.85em;"></textarea>
+        @* KONAČNI POPRAVAK ZA PDF: Običan HTML textarea s ID-om (Nema Blazor preopterećenja) *@
+        <textarea id="jsonInputBox" placeholder="Ovdje desni klik -> Zalijepi (Paste)" style="width: 100%; height: 100px; margin-bottom: 10px; font-family: monospace; font-size: 0.85em;"></textarea>
         <button @onclick="UveziPodatkeIzTeksta" style="background-color: #4CAF50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;">
             📥 Uvezi podatke na Web
         </button>
@@ -99,10 +112,9 @@ else
 
 @code {
     private List<TodoItem> todos = [];
-    private string jsonTekst = "";
     private string syncStatus = "";
+    private string validationError = "";
 
-    // Varijable za unos novog zadatka
     private string? newTodo;
     private string? newSifra;
     private DateTime? newTodoDueDate;
@@ -125,7 +137,7 @@ else
         var file = e.File;
         if (file != null && file.ContentType == "application/pdf")
         {
-            long maxFileSize = 5242880; // 5MB
+            long maxFileSize = 5242880 * 10; // 50MB
             using var stream = file.OpenReadStream(maxFileSize);
             using var memoryStream = new MemoryStream();
             await stream.CopyToAsync(memoryStream);
@@ -136,31 +148,46 @@ else
 
     private async Task AddTodo()
     {
-        if (!string.IsNullOrWhiteSpace(newTodo))
+        validationError = "";
+
+        if (string.IsNullOrWhiteSpace(newSifra))
         {
-            var newItem = new TodoItem 
-            { 
-                Title = newTodo, 
-                IsDone = false, 
-                DueDate = newTodoDueDate, 
-                Sifra = newSifra, 
-                PdfContent = uploadedPdfContent, 
-                PdfFileName = uploadedPdfFileName 
-            };
-            
-            using var context = DbFactory.CreateDbContext();
-            context.Todos.Add(newItem);
-            await context.SaveChangesAsync();
-            
-            todos.Add(newItem);
-            
-            // Čišćenje polja nakon unosa
-            newTodo = string.Empty; 
-            newSifra = string.Empty; 
-            newTodoDueDate = null; 
-            uploadedPdfContent = null; 
-            uploadedPdfFileName = null;
+            validationError = "❌ Greška: Upis šifre je obavezan!";
+            return;
         }
+
+        newSifra = newSifra.Trim().ToUpper();
+
+        string formatPattern = @"^[A-Z]{2}-[A-Z]{2}-[0-9]{2}$";
+        if (!Regex.IsMatch(newSifra, formatPattern))
+        {
+            validationError = "❌ Neispravan format! Šifra mora biti u obliku: AA-BB-01";
+            return;
+        }
+
+        var pripremiTitle = string.IsNullOrWhiteSpace(newTodo) ? "" : newTodo.Trim();
+
+        var newItem = new TodoItem 
+        { 
+            Title = pripremiTitle, 
+            IsDone = false, 
+            DueDate = newTodoDueDate, 
+            Sifra = newSifra, 
+            PdfContent = uploadedPdfContent, 
+            PdfFileName = uploadedPdfFileName 
+        };
+        
+        using var context = DbFactory.CreateDbContext();
+        context.Todos.Add(newItem);
+        await context.SaveChangesAsync();
+        
+        todos.Add(newItem);
+        
+        newTodo = string.Empty; 
+        newSifra = string.Empty; 
+        newTodoDueDate = null; 
+        uploadedPdfContent = null; 
+        uploadedPdfFileName = null;
     }
 
     private async Task ViewPdf(TodoItem todo)
@@ -190,7 +217,6 @@ else
         todos.Remove(todoToRemove);
     }
 
-    // LOKALNI KORAK: Pretvara živu bazu u tekst i sprema u Clipboard
     private async Task KopirajPodatkeKaoTekst()
     {
         try
@@ -198,56 +224,78 @@ else
             using var context = DbFactory.CreateDbContext();
             var sveStavke = await context.Todos.ToListAsync();
             var tekst = JsonSerializer.Serialize(sveStavke);
-            
             await JS.InvokeVoidAsync("navigator.clipboard.writeText", tekst);
-            syncStatus = $"✅ {sveStavke.Count} stavke su uspješno kopirane! Sada otvorite WEB stranicu i zalijepite ih.";
+            syncStatus = $"✅ {sveStavke.Count} stavke kopirane! Zalijepite ih na WEB.";
         }
         catch (Exception ex)
         {
-            syncStatus = $"❌ Greška prilikom kopiranja: {ex.Message}";
+            syncStatus = $"❌ Greška: {ex.Message}";
         }
     }
 
-    // PRODUKCIJSKI KORAK: Prima tekst s računala i urezuje stavke na server
     private async Task UveziPodatkeIzTeksta()
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(jsonTekst))
+            // Čitamo tekst direktno iz DOM memorije preko JavaScripta (Zaobilazi Blazor limit)
+            var uvecaniTekst = await JS.InvokeAsync<string>("eval", "document.getElementById('jsonInputBox').value");
+
+            if (string.IsNullOrWhiteSpace(uvecaniTekst))
             {
                 syncStatus = "❌ Polje za tekst je prazno. Molimo zalijepite kôd.";
                 return;
             }
 
-            var stavkeZaUvoz = JsonSerializer.Deserialize<List<TodoItem>>(jsonTekst);
-            if (stavkeZaUvoz == null || stavkeZaUvoz.Count == 0)
-            {
-                syncStatus = "❌ Tekst nije ispravan ili ne sadrži stavke.";
-                return;
-            }
+            var stavkeZaUvoz = JsonSerializer.Deserialize<System.Collections.Generic.List<TodoItem>>(uvecaniTekst);
+            if (stavkeZaUvoz == null || !stavkeZaUvoz.Any()) return;
 
             using (var prodContext = DbFactory.CreateDbContext())
             {
+                // Prvo brišemo stare zapise
                 await prodContext.Database.ExecuteSqlRawAsync("DELETE FROM Todos;");
 
-                foreach (var stavka in stavkeZaUvoz)
+                // Određujemo malu veličinu paketa (10 po 10 stavki zbog teških PDF datoteka)
+                int velicinaPaketa = 10;
+
+                for (int i = 0; i < stavkeZaUvoz.Count; i += velicinaPaketa)
                 {
-                    var novaStavka = new TodoItem
+                    // Uzimamo paket od maksimalno 10 stavki
+                    var trenutniPaket = stavkeZaUvoz.Skip(i).Take(velicinaPaketa);
+
+                    foreach (var stavka in trenutniPaket)
                     {
-                        Title = stavka.Title,
-                        Sifra = stavka.Sifra,
-                        IsDone = stavka.IsDone,
-                        DueDate = stavka.DueDate,
-                        PdfContent = stavka.PdfContent,
-                        PdfFileName = stavka.PdfFileName
-                    };
-                    prodContext.Todos.Add(novaStavka);
+                        var novaStavka = new TodoItem
+                        {
+                            Title = stavka.Title,
+                            Sifra = stavka.Sifra,
+                            IsDone = stavka.IsDone,
+                            DueDate = stavka.DueDate,
+                            PdfContent = stavka.PdfContent,
+                            PdfFileName = stavka.PdfFileName
+                        };
+                        prodContext.Todos.Add(novaStavka);
+                    }
+
+                    // Spremamo trenutni paket od 10 stavki u bazu podataka
+                    await prodContext.SaveChangesAsync();
+
+                    // KLJUČNO: Brišemo obrađenih 10 PDF-ova iz RAM-a prije idućeg paketa
+                    prodContext.ChangeTracker.Clear();
                 }
-                await prodContext.SaveChangesAsync(); todos = await prodContext.Todos.ToListAsync();
+
+                // Nakon što su svi paketi uspješno spremljeni, učitavamo svježe podatke za prikaz
+                todos = await prodContext.Todos.ToListAsync();
             }
-            jsonTekst = ""; syncStatus = $"🚀 Uspjeh! Na webu se sada nalaze sve {todos.Count} stavke."; StateHasChanged();
+
+            // Čistimo tekstualni okvir preko JS-a
+            await JS.InvokeVoidAsync("eval", "document.getElementById('jsonInputBox').value = ''");
+            syncStatus = $"🚀 Uspjeh! Na webu se sada nalaze sve {todos.Count} stavke.";
+            StateHasChanged();
         }
-        catch (Exception ex) { syncStatus = $"❌ Greška tijekom uvoza: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            syncStatus = $"❌ Greška: {ex.Message}";
+        }
     }
 }
 
