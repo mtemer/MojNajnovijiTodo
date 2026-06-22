@@ -1,6 +1,7 @@
 ﻿FROM ://microsoft.com AS build
 WORKDIR /src
 COPY ["TodoList/TodoList.csproj", "TodoList/"]
+COPY ["TodoList.Client/TodoList.Client.csproj", "TodoList.Client/"]
 RUN dotnet restore "TodoList/TodoList.csproj"
 COPY . .
 WORKDIR "/src/TodoList"
