@@ -95,33 +95,6 @@ else
     </p>
 }
 
-<div style="margin-top: 40px; padding: 15px; border: 2px dashed #ff9800; background-color: #fffde7; border-radius: 8px; max-width: 500px;">
-    <h4 style="margin-top: 0; color: #e65100;">Alat za tekstualnu sinkronizaciju podataka</h4>
-    
-    @if (Env.IsDevelopment())
-    {
-        <p style="font-size: 0.9em; margin-bottom: 10px;">Kliknite gumb ispod kako biste kopirali sve lokalne stavke u međuspremnik:</p>
-        <button @onclick="KopirajPodatkeKaoTekst" style="background-color: #2196F3; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;">
-            📋 Kopiraj sve stavke s računala
-        </button>
-    }
-    else
-    {
-        <p style="font-size: 0.9em; margin-bottom: 10px;">Zalijepite tekst kopiran s računala u polje ispod i kliknite Uvezi:</p>
-        <div class="mb-3">
-            <label class="form-label">Uvezi podatke iz JSON datoteke (s PDF-ovima):</label>
-            <!-- Nova, sigurna Blazor komponenta za učitavanje teških datoteka -->
-            <InputFile OnChange="UveziIzDatoteke" class="form-control" />
-        </div>
-        <p>@syncStatus</p>
-    }
-
-    @if (!string.IsNullOrEmpty(syncStatus))
-    {
-        <p style="color: green; font-weight: bold; margin-top: 8px; margin-bottom: 0;">@syncStatus</p>
-    }
-</div>
-
 <div style="margin-top: 20px; padding: 15px; border: 1px dashed #ccc; background-color: #fafafa;">
     <label style="display: block; margin-bottom: 8px; font-weight: bold;">Uvezi podatke iz datoteke (za sinkronizaciju):</label>
     <!-- Komponenta za odabir podaci.json datoteke -->
