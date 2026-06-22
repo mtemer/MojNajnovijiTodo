@@ -1,4 +1,5 @@
-﻿FROM ://microsoft.com AS build
+﻿# Popravak v2
+FROM ://microsoft.com AS build
 WORKDIR /src
 COPY ["TodoList/TodoList.csproj", "TodoList/"]
 COPY ["TodoList.Client/TodoList.Client.csproj", "TodoList.Client/"]
