@@ -1,57 +1,59 @@
 using Microsoft.EntityFrameworkCore;
+using TodoList;
+using TodoList.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Registracija Blazor Server komponenti s podrškom za velike PDF poruke (100MB)
+// 1. Registracija Blazor komponenti s izravnim podizanjem mrežnog limita na 100 MB (za teške PDF-ove)
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
-
-builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options =>
-{
-    options.MaximumReceiveMessageSize = 1024 * 1024 * 100; // 100 MB
-});
-
-// 2. Registracija SQLite baze podataka s punom, nepogrešivom stazom za kontekst
-builder.Services.AddDbContextFactory<TodoList.TodoDbContext>(options =>
-{
-    if (builder.Environment.IsDevelopment())
+    .AddInteractiveServerComponents()
+    .AddHubOptions(options =>
     {
-        string fiksnaLokalnaPutanja = @"C:\Users\Miljenko Temer\source\repos\TodoList\TodoList\todonova.db";
-        options.UseSqlite($"Data Source={fiksnaLokalnaPutanja};");
-    }
-    else
-    {
-        string prodDbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "todonova.db");
-        options.UseSqlite($"Data Source={prodDbPath}");
-    }
-});
+        options.MaximumReceiveMessageSize = 1024 * 1024 * 100; // Podignuto na 100 MB
+    })
+    .AddInteractiveWebAssemblyComponents();
+
+// 2. Registracija SQLite baze podataka na trajnu Railway lokaciju (/data/)
+builder.Services.AddDbContextFactory<TodoDbContext>(options =>
+    options.UseSqlite("Data Source=/data/todo.db"));
 
 var app = builder.Build();
 
-// Otvaranje i sigurno kreiranje baze pri pokretanju aplikacije na poslužitelju
-using (var scope = app.Services.CreateScope())
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
 {
-    var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<TodoList.TodoDbContext>>();
-    using var context = dbFactory.CreateDbContext();
-    await context.Database.EnsureCreatedAsync();
-
-    if (app.Environment.IsDevelopment())
-    {
-        await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=DELETE;");
-    }
+    app.UseWebAssemblyDebugging();
 }
-
-// 3. Konfiguracija HTTP cjevovoda
-if (!app.Environment.IsDevelopment())
+else
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    app.UseHsts();
 }
 
-app.UseStaticFiles();
+app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseHttpsRedirection();
 app.UseAntiforgery();
+app.MapStaticAssets();
 
-// 4. Mapiranje komponenti s punom stazom
-app.MapRazorComponents<TodoList.Components.App>()
-    .AddInteractiveServerRenderMode();
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode()
+    .AddInteractiveWebAssemblyRenderMode()
+    .AddAdditionalAssemblies(typeof(TodoList.Client._Imports).Assembly);
+
+// 3. Automatsko pokretanje migracija i kreiranje baze na Linuxu (Railway Volume)
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<TodoDbContext>();
+
+    // Osiguravamo da /data mapa postoji na Linuxu prije nego SQLite pokuša kreirati datoteku
+    var dbFolder = Path.GetDirectoryName("/data/todo.db");
+    if (!string.IsNullOrEmpty(dbFolder))
+    {
+        Directory.CreateDirectory(dbFolder);
+    }
+
+    // Automatski primjenjuje sve migracije na produkcijsku bazu
+    dbContext.Database.Migrate();
+}
 
 app.Run();
