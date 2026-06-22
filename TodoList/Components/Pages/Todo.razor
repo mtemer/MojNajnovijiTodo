@@ -4,8 +4,7 @@
 @using TodoList
 @using System.Text.Json
 @using System.Text.RegularExpressions
-using System.IO;
-using System.Text.Json;
+@using System.IO;
 
 
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
@@ -17,8 +16,17 @@ using System.Text.Json;
     </div>
 }
 
+<div style="margin-bottom: 15px; max-width: 400px;">
+    <input type="text"
+           class="form-control"
+           placeholder="🔍 Pretraži po nazivu ili šifri..."
+           @bind="searchTerm"
+           @bind:event="oninput" />
+</div>
+
+
 <ul>
-    @foreach (var todo in todos)
+    @foreach (var todo in FiltriraniTodos)
     {
         <li style="margin-bottom: 8px; list-style-type: none; display: flex; align-items: center;">
             <input type="checkbox" checked="@todo.IsDone" @onchange="(e) => ToggleDone(todo, e)" disabled style="margin-right: 10px;" />
@@ -114,10 +122,18 @@ else
     }
 </div>
 
+<div style="margin-top: 20px; padding: 15px; border: 1px dashed #ccc; background-color: #fafafa;">
+    <label style="display: block; margin-bottom: 8px; font-weight: bold;">Uvezi podatke iz datoteke (za sinkronizaciju):</label>
+    <!-- Komponenta za odabir podaci.json datoteke -->
+    <InputFile OnChange="UveziIzDatoteke" />
+    <p style="margin-top: 5px; color: green; font-weight: bold;">@syncStatus</p>
+</div>
+
 @code {
     private List<TodoItem> todos = [];
     private string syncStatus = "";
     private string validationError = "";
+    private string searchTerm = string.Empty;
 
     private string? newTodo;
     private string? newSifra;
@@ -237,63 +253,71 @@ else
         }
     }
 
-private async Task UveziIzDatoteke(InputFileChangeEventArgs e)
-{
-    try
+    private async Task UveziIzDatoteke(InputFileChangeEventArgs e)
     {
-        syncStatus = "⏳ Učitavanje datoteke i obrada podataka...";
-        StateHasChanged();
-
-        // 1. Otvaramo siguran stream za čitanje datoteke (dopuštamo datoteke do 500 MB)
-        using var stream = e.File.OpenReadStream(maxAllowedSize: 512 * 1024 * 1024);
-
-        // 2. Deserijalizacija izravno iz streama (ne učitava cijeli tekst odjednom u RAM!)
-        var stavkeZaUvoz = await JsonSerializer.DeserializeAsync<List<TodoItem>>(stream);
-
-        if (stavkeZaUvoz == null || !stavkeZaUvoz.Any())
+        try
         {
-            syncStatus = "❌ Datoteka je prazna ili neispravna.";
-            return;
-        }
+            syncStatus = "⏳ Učitavanje datoteke i obrada podataka...";
+            StateHasChanged();
 
-        // 3. Otvaranje konteksta baze podataka i paketni unos (vaša optimizirana logika)
-        using (var prodContext = DbFactory.CreateDbContext())
-        {
-            await prodContext.Database.ExecuteSqlRawAsync("DELETE FROM Todos;");
+            // 1. Otvaramo siguran stream za čitanje datoteke (dopuštamo datoteke do 500 MB)
+            using var stream = e.File.OpenReadStream(maxAllowedSize: 512 * 1024 * 1024);
 
-            int velicinaPaketa = 10;
-            for (int i = 0; i < stavkeZaUvoz.Count; i += velicinaPaketa)
+            // 2. Deserijalizacija izravno iz streama (ne učitava cijeli tekst odjednom u RAM!)
+            var stavkeZaUvoz = await JsonSerializer.DeserializeAsync<List<TodoItem>>(stream);
+
+            if (stavkeZaUvoz == null || !stavkeZaUvoz.Any())
             {
-                var trenutniPaket = stavkeZaUvoz.Skip(i).Take(velicinaPaketa);
-
-                foreach (var stavka in trenutniPaket)
-                {
-                    var novaStavka = new TodoItem
-                    {
-                        Title = stavka.Title,
-                        Sifra = stavka.Sifra,
-                        IsDone = stavka.IsDone,
-                        DueDate = stavka.DueDate,
-                        PdfContent = stavka.PdfContent,
-                        PdfFileName = stavka.PdfFileName
-                    };
-                    prodContext.Todos.Add(novaStavka);
-                }
-
-                await prodContext.SaveChangesAsync();
-                prodContext.ChangeTracker.Clear(); // Čišćenje memorije
+                syncStatus = "❌ Datoteka je prazna ili neispravna.";
+                return;
             }
 
-            todos = await prodContext.Todos.ToListAsync();
-        }
+            // 3. Otvaranje konteksta baze podataka i paketni unos (vaša optimizirana logika)
+            using (var prodContext = DbFactory.CreateDbContext())
+            {
+                await prodContext.Database.ExecuteSqlRawAsync("DELETE FROM Todos;");
 
-        syncStatus = $"🚀 Uspjeh! Na webu se sada nalaze sve {todos.Count} stavke učitane iz datoteke.";
-        StateHasChanged();
+                int velicinaPaketa = 10;
+                for (int i = 0; i < stavkeZaUvoz.Count; i += velicinaPaketa)
+                {
+                    var trenutniPaket = stavkeZaUvoz.Skip(i).Take(velicinaPaketa);
+
+                    foreach (var stavka in trenutniPaket)
+                    {
+                        var novaStavka = new TodoItem
+                        {
+                            Title = stavka.Title,
+                            Sifra = stavka.Sifra,
+                            IsDone = stavka.IsDone,
+                            DueDate = stavka.DueDate,
+                            PdfContent = stavka.PdfContent,
+                            PdfFileName = stavka.PdfFileName
+                        };
+                        prodContext.Todos.Add(novaStavka);
+                    }
+
+                    await prodContext.SaveChangesAsync();
+                    prodContext.ChangeTracker.Clear(); // Čišćenje memorije
+                }
+
+                todos = await prodContext.Todos.ToListAsync();
+            }
+
+            syncStatus = $"🚀 Uspjeh! Na webu se sada nalaze sve {todos.Count} stavke učitane iz datoteke.";
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            syncStatus = $"❌ Greška pri uvozu: {ex.Message}";
+        }
     }
-    catch (Exception ex)
-    {
-        syncStatus = $"❌ Greška pri uvozu: {ex.Message}";
-    }
-}
+
+    // Svojstvo koje automatski filtrira popis na temelju upisanog teksta
+    private IEnumerable<TodoItem> FiltriraniTodos =>
+        string.IsNullOrWhiteSpace(searchTerm)
+            ? todos
+            : todos.Where(t => (t.Title != null && t.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) ||
+                               (t.Sifra != null && t.Sifra.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
+
 }
 
