@@ -11,6 +11,24 @@
 
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
 
+<style>
+    .res-form {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 18px;
+        background: #fff;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    .info-box {
+        background: #eef5ff;
+        border-left: 5px solid #0040a0;
+        border-radius: 8px;
+        padding: 14px;
+        margin-top: 18px;
+    }
+</style>
+
+
 @if (Env.IsDevelopment())
 {
     <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 0.9em;">
@@ -21,7 +39,7 @@
 <div style="margin-bottom: 15px; max-width: 400px;">
     <input type="text"
            class="form-control"
-           placeholder="🔍 Pretraži po nazivu ili šifri..."
+           placeholder="🔍 Pretraži prema nazivu ili šifri..."
            @bind="searchTerm"
            @bind:event="oninput" />
 </div>
@@ -31,10 +49,6 @@
     {
         <li style="margin-bottom: 8px; list-style-type: none; display: flex; align-items: center;">
             <input type="checkbox" checked="@todo.IsDone" @onchange="(e) => ToggleDone(todo, e)" disabled style="margin-right: 10px;" />
-
-            <span style="@(todo.IsDone ? "text-decoration: line-through; color: gray;" : "")">
-                @(string.IsNullOrWhiteSpace(todo.Title) ? "(Nema naziva)" : todo.Title)
-            </span>
 
             <span style="margin-left: 10px; font-size: 0.85em; color: #1565c0; background-color: #e3f2fd; font-weight: bold; padding: 2px 6px; border-radius: 4px;">
                 @todo.Sifra
@@ -49,50 +63,99 @@
 
             @if (todo.PdfContent != null)
             {
-                <button @onclick="() => ViewPdf(todo)" style="margin-left: 10px; background-color: #4CAF50; color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer;">
+                <button @onclick="() => PrikaziPdfPrekoStreama(todo)" style="margin-left: 10px; background-color: #4CAF50; color: white; border: none; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 0.85em;">
                     👁️ Prikaži PDF
                 </button>
             }
 
             @if (Env.IsDevelopment())
             {
-                <button @onclick="() => DeleteTodo(todo)" style="margin-left: 15px; color: white; background-color: #d32f2f; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 0.85em;">
+                <button @onclick="() => DeleteTodo(todo)" style="margin-left: 15px; margin-right: 10px; color: white; background-color: #d32f2f; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 0.85em;">
                     Briši
                 </button>
             }
+
+
+            <span style="@(todo.IsDone ? "text-decoration: line-through; color: gray;" : "")">
+                @(string.IsNullOrWhiteSpace(todo.Title) ? "(Nema naziva)" : todo.Title)
+            </span>
+
         </li>
     }
 </ul>
 
 @if (Env.IsDevelopment())
 {
-    <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 300px; padding: 15px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 6px;">
-        <h4 style="margin-top: 0;">Novi unos</h4>
-        
-        <label style="font-size: 0.85em; font-weight: bold; color: #333;">Šifra (Obavezno, format: AA-BB-01):</label>
-        <input placeholder="npr. AA-BB-01" @bind="newSifra" style="padding: 6px; text-transform: uppercase;" />
-        
-        <label style="font-size: 0.85em; font-weight: bold; color: #333;">Naziv #Dokumenta (Neobavezno):</label>
-        <input placeholder="Upis #Dokumenta" @bind="newTodo" style="padding: 6px;" />
-        
-        <label style="font-size: 0.85em; font-weight: bold; color: #333;">Datum:</label>
-        <input type="date" @bind="newTodoDueDate" style="padding: 6px;" />
-        
-        <label style="font-size: 0.85em; font-weight: bold; color: #333; margin-top: 5px;">Dodaj PDF dokument:</label>
-        <Microsoft.AspNetCore.Components.Forms.InputFile OnChange="HandleFileSelected" accept=".pdf" />
-        
-        <button @onclick="AddTodo" style="background-color: #FFDE21; font-weight: bold; padding: 8px; margin-top: 10px; border: 1px solid #ccb11b; border-radius: 4px; cursor: pointer;">Add todo</button>
-        
-        @if (!string.IsNullOrEmpty(validationError))
-        {
-            <p style="color: red; font-weight: bold; font-size: 0.85em; margin-top: 5px; margin-bottom: 0;">@validationError</p>
-        }
+    <!-- Glavni kontejner koji slaže elemente jedan pokraj drugog -->
+    <div style="display: flex; gap: 20px; align-items: flex-start; margin-top: 20px; max-width: 900px;">
+
+        <!-- 1. OKVIR: NOVI UNOS (Lijevo) -->
+        <div style="flex: 1; min-width: 300px; padding: 15px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 6px; display: flex; flex-direction: column; gap: 8px;">
+            <h4 style="margin-top: 0;">Novi unos</h4>
+
+            <label style="font-size: 0.85em; font-weight: bold; color: #333;">Šifra (Obavezno, format: AA-BB-01):</label>
+            <input placeholder="npr. AA-BB-01" @bind="newSifra" style="padding: 6px; text-transform: uppercase;" />
+
+            <label style="font-size: 0.85em; font-weight: bold; color: #333;">Naziv #Dokumenta (Neobavezno):</label>
+            <input placeholder="Upis #Dokumenta" @bind="newTodo" style="padding: 6px;" />
+
+            <label style="font-size: 0.85em; font-weight: bold; color: #333;">Datum:</label>
+            <input type="date" @bind="newTodoDueDate" style="padding: 6px;" />
+
+            <label style="font-size: 0.85em; font-weight: bold; color: #333; margin-top: 5px;">Dodaj PDF dokument:</label>
+            <Microsoft.AspNetCore.Components.Forms.InputFile OnChange="HandleFileSelected" accept=".pdf" />
+
+            <button @onclick="AddTodo" style="background-color: #FFDE21; font-weight: bold; padding: 8px; margin-top: 10px; border: 1px solid #ccb11b; border-radius: 4px; cursor: pointer;">Add todo</button>
+
+            @if (!string.IsNullOrEmpty(validationError))
+            {
+                <p style="color: red; font-weight: bold; font-size: 0.85em; margin-top: 5px; margin-bottom: 0;">@validationError</p>
+            }
+        </div>
+
+        <!-- 2. OKVIR: LEGENDA ZA PRETRAŽIVANJE (Desno) -->
+        <div style="flex: 1.5; min-width: 350px; padding: 15px; background-color: #e3f2fd; border: 1px solid #90caf9; border-radius: 6px; font-family: monospace; font-size: 0.85em; max-height: 430px; overflow-y: auto;">
+            <h4 style="margin-top: 0; color: #1565c0; font-family: sans-serif;">🔍 Legenda za pretraživanje</h4>
+            <table style="width: 100%; border-collapse: collapse; line-height: 1.4;">
+                <tbody>
+                    <tr><td style="font-weight:bold; width:15%;">DE-</td><td style="width:20%;">(1-11)</td><td>Denacionalizacija</td></tr>
+                    <tr><td style="font-weight:bold;">GR-</td><td>(1-11)</td><td>Gruntovnica-Katastar</td></tr>
+                    <tr><td style="font-weight:bold;">NA-</td><td>(1-11)</td><td>Nacionalizacija</td></tr>
+                    <tr><td style="font-weight:bold;">NP-</td><td>(1-11)</td><td>Nasljedstvo i Pokloni</td></tr>
+                    <tr><td style="font-weight:bold;">UK-</td><td>(1-11)</td><td>Ugovori o Kupnji</td></tr>
+                    <tr><td style="font-weight:bold;">UP-</td><td>(1-11)</td><td>Ugovori o Prodaji</td></tr>
+                    <tr><td style="font-weight:bold;">UZ-</td><td>(1-11)</td><td>Ugovori o Zakupu</td></tr>
+                    <tr><td style="font-weight:bold;">DG-</td><td>(1-15)</td><td>Državna-Gradska uprava</td></tr>
+                    <tr><td style="font-weight:bold;">US-</td><td>(12-15)</td><td>Ugovori ostali</td></tr>
+                    <tr><td style="font-weight:bold;">BK-</td><td>(12-15)</td><td>Banke Osiguravajuća društva</td></tr>
+                    <tr><td style="font-weight:bold;">VP-</td><td>(12-15)</td><td>Vrijednosni papiri (Dionice)</td></tr>
+                    <tr><td style="font-weight:bold;">ID-</td><td>(1-15)</td><td>Interni dokumenti Elaborati</td></tr>
+                    <tr><td colspan="3"><hr style="border: 0; border-top: 1px solid #90caf9; margin: 8px 0;" /></td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-KA-</td><td>(1) Kačićeva</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-KV-</td><td>(2) Kvaternikov trg</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-DE-</td><td>(3) Prilaz Deželića</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-LA-</td><td>(4) Labudovac</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-HE-</td><td>(5) Heinzelova</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-PI-</td><td>(6) Pinezići</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-SL-</td><td>(7) Slavetić</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-ZV-</td><td>(8) Zvonimirova</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-DU-</td><td>(9) Dubrava</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-SD-</td><td>(10) Sveti duh</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-KU-</td><td>(11) Kutina</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-MI-</td><td>(12) Miljenko</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-MA-</td><td>(13) Marija</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-AN-</td><td>(14) Andrej</td></tr>
+                    <tr><td></td><td style="font-weight:bold;">-FA-</td><td>(15) Obitelj</td></tr>
+                </tbody>
+            </table>
+        </div>
+
     </div>
 
     <!-- ALAT ZA IZVOZ U DATOTEKU - VIDLJIV SAMO LOKALNO -->
     <div style="margin-top: 25px; padding: 15px; border: 1px solid #ff9800; background-color: #fffde7; border-radius: 6px; max-width: 500px;">
         <h5 style="color: #e65100; margin-top: 0;">💻 Lokalni alat: Izvoz u međuspremnik</h5>
-        <p style="font-size: 0.9em; color: #555; margin-bottom: 12px;">Klikom na gumb kopirat ćete sav tekst baze. Zatim ga zalijepite u Notepad i spremite kao 'podaci.json'.</p>
+        <p style="font-size: 0.9em; color: #555; margin-bottom: 12px;">Klikom na gumb kopira se sav tekst baze u međuspremnik. Zatim ga treba zalijepiti u 'podaci.json' i spremiti.</p>
         
         <button @onclick="KopirajSveStavkeSRacunala" style="background-color: #ff9800; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;">
             Kopiraj sve stavke s računala
@@ -112,7 +175,7 @@ else
 }
 
 <div style="margin-top: 20px; padding: 15px; border: 1px dashed #ccc; background-color: #fafafa; max-width: 500px;">
-    <label style="display: block; margin-bottom: 8px; font-weight: bold;">Uvezi podatke iz datoteke (za sinkronizaciju):</label>
+    <label style="display: block; margin-bottom: 8px; font-weight: bold;">Uvoz podataka u bazu iz datoteke 'podaci.json':</label>
     <!-- Komponenta za odabir podaci.json datoteke -->
     <InputFile OnChange="UveziIzDatoteke" />
     <p style="margin-top: 5px; color: green; font-weight: bold; margin-bottom: 0;">@syncStatus</p>
@@ -132,8 +195,8 @@ else
 
     private IEnumerable<TodoItem> FiltriraniTodos =>
         string.IsNullOrWhiteSpace(searchTerm)
-            ? todos
-            : todos.Where(t => (t.Title != null && t.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) || 
+            ? Enumerable.Empty<TodoItem>() // Ako je polje prazno, vraća se prazan popis
+            : todos.Where(t => (t.Title != null && t.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) ||
                                (t.Sifra != null && t.Sifra.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
 
     protected override async Task OnInitializedAsync()
@@ -254,15 +317,27 @@ else
     }
 
     private async Task HandleFileSelected(InputFileChangeEventArgs e)
-    { 
+    {
         var file = e.File;
         if (file != null)
+        {
+            try
+            {
+                selectedPdfName = file.Name;
 
-        { selectedPdfName = file.Name;
-            using var stream = file.OpenReadStream(maxAllowedSize: 15 * 1024 * 1024);
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms);
-            selectedPdfBytes = ms.ToArray();
+                // POPRAVAK: Eksplicitno definiramo limit od 20 MB za strujanje datoteke (20 * 1024 * 1024)
+                using var stream = file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                selectedPdfBytes = ms.ToArray();
+
+                // Opcionalno: brišemo staru poruku greške ako je postojala
+                validationError = null;
+            }
+            catch (Exception ex)
+            {
+                validationError = $"❌ Greška pri učitavanju PDF datoteke: {ex.Message}";
+            }
         }
     }
 
@@ -280,12 +355,26 @@ else
         todos.Remove(todoToRemove);
     }
 
-    private async Task ViewPdf(TodoItem todo)
+    private async Task PrikaziPdfPrekoStreama(TodoItem todo)
     {
         if (todo.PdfContent != null)
-        { var base64 = Convert.ToBase64String(todo.PdfContent);
-            var pdfUrl = $"data:application/pdf;base64,{base64}";
-            await JS.InvokeVoidAsync("open", pdfUrl, "_blank");
+        {
+            try
+            {
+                // Otvaramo memorijski tok nad bajtovima iz baze podataka
+                using var ms = new MemoryStream(todo.PdfContent);
+
+                // Kreiramo Blazor stream referencu za siguran prijenos
+                using var streamRef = new DotNetStreamReference(stream: ms);
+
+                // Šaljemo stream izravno u našu JavaScript funkciju bez Base64 pretvorbe!
+                await JS.InvokeVoidAsync("otvoriPdfIzBajtova", todo.PdfFileName ?? "dokument.pdf", streamRef);
+            }
+            catch (Exception ex)
+            {
+                validationError = $"❌ Greška pri otvaranju dokumenta: {ex.Message}";
+            }
         }
     }
+
 }

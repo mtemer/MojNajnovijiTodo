@@ -18,6 +18,22 @@
     <script src="/_framework/aspnetcore-browser-refresh.js"></script>
     <script src="_framework/blazor.web.js"></script>
 
+    <script>
+        window.otvoriPdfIzBajtova = async (imeDatoteke, streamRef) => {
+        // 1. Primamo sirovi stream bajtova iz .NET-a
+        const arrayBuffer = await streamRef.arrayBuffer();
+
+        // 2. Pretvaramo ga u siguran Blob objekt unutar memorije preglednika
+        const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+
+        // 3. Kreiramo privremenu adresu koju preglednik obožava i ne blokira
+        const blobUrl = URL.createObjectURL(blob);
+
+        // 4. Otvaramo PDF u novom prozoru
+        window.open(blobUrl, '_blank');
+        };
+    </script>
+
     <!-- TOČNO OVDJE ZALIJEPITE SCRIPT ZA PDF -->
     <script>
         let pdfWindow = null;
