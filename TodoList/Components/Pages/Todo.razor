@@ -11,22 +11,6 @@
 
 <h3>Todo (@todos.Count(todo => !todo.IsDone))</h3>
 
-<style>
-    .res-form {
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        padding: 18px;
-        background: #fff;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    }
-    .info-box {
-        background: #eef5ff;
-        border-left: 5px solid #0040a0;
-        border-radius: 8px;
-        padding: 14px;
-        margin-top: 18px;
-    }
-</style>
 
 
 @if (Env.IsDevelopment())
@@ -35,6 +19,43 @@
         <strong>LOKALNI RAD:</strong> <code style="background: white; padding: 2px 4px;">Uspješno povezano</code>
     </div>
 }
+
+<!-- LEGENDA ZA PRETRAŽIVANJE - SADA JE VIDLJIVA SVUGDJE (LOKALNO I NA WEB-U) -->
+<div style="margin-bottom: 20px; padding: 15px; background-color: #e3f2fd; border: 1px solid #90caf9; border-radius: 6px; font-family: monospace; font-size: 0.85em; max-width: 500px; max-height: 250px; overflow-y: auto;">
+    <h4 style="margin-top: 0; color: #1565c0; font-family: sans-serif; margin-bottom: 10px;">🔍 Legenda za pretraživanje</h4>
+    <table style="width: 100%; border-collapse: collapse; line-height: 1.4;">
+        <tbody>
+            <tr><td style="font-weight:bold; width:15%;">DE-</td><td style="width:20%;">(1-11)</td><td>Denacionalizacija</td></tr>
+            <tr><td style="font-weight:bold;">GR-</td><td>(1-11)</td><td>Gruntovnica-Katastar</td></tr>
+            <tr><td style="font-weight:bold;">NA-</td><td>(1-11)</td><td>Nacionalizacija</td></tr>
+            <tr><td style="font-weight:bold;">NP-</td><td>(1-11)</td><td>Nasljedstvo i Pokloni</td></tr>
+            <tr><td style="font-weight:bold;">UK-</td><td>(1-11)</td><td>Ugovori o Kupnji</td></tr>
+            <tr><td style="font-weight:bold;">UP-</td><td>(1-11)</td><td>Ugovori o Prodaji</td></tr>
+            <tr><td style="font-weight:bold;">UZ-</td><td>(1-11)</td><td>Ugovori o Zakupu</td></tr>
+            <tr><td style="font-weight:bold;">DG-</td><td>(1-15)</td><td>Državna-Gradska uprava</td></tr>
+            <tr><td style="font-weight:bold;">US-</td><td>(12-15)</td><td>Ugovori ostali</td></tr>
+            <tr><td style="font-weight:bold;">BK-</td><td>(12-15)</td><td>Banke Osiguravajuća društva</td></tr>
+            <tr><td style="font-weight:bold;">VP-</td><td>(12-15)</td><td>Vrijednosni papiri (Dionice)</td></tr>
+            <tr><td style="font-weight:bold;">ID-</td><td>(1-15)</td><td>Interni dokumenti Elaborati</td></tr>
+            <tr><td colspan="3"><hr style="border: 0; border-top: 1px solid #90caf9; margin: 8px 0;" /></td></tr>
+            <tr><td></td><td style="font-weight:bold;">-KA-</td><td>(1) Kačićeva</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-KV-</td><td>(2) Kvaternikov trg</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-DE-</td><td>(3) Prilaz Deželića</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-LA-</td><td>(4) Labudovac</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-HE-</td><td>(5) Heinzelova</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-PI-</td><td>(6) Pinezići</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-SL-</td><td>(7) Slavetić</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-ZV-</td><td>(8) Zvonimirova</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-DU-</td><td>(9) Dubrava</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-SD-</td><td>(10) Sveti duh</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-KU-</td><td>(11) Kutina</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-MI-</td><td>(12) Miljenko</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-MA-</td><td>(13) Marija</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-AN-</td><td>(14) Andrej</td></tr>
+            <tr><td></td><td style="font-weight:bold;">-FA-</td><td>(15) Obitelj</td></tr>
+        </tbody>
+    </table>
+</div>
 
 <div style="margin-bottom: 15px; max-width: 400px;">
     <input type="text"
@@ -75,7 +96,6 @@
                 </button>
             }
 
-
             <span style="@(todo.IsDone ? "text-decoration: line-through; color: gray;" : "")">
                 @(string.IsNullOrWhiteSpace(todo.Title) ? "(Nema naziva)" : todo.Title)
             </span>
@@ -112,44 +132,6 @@
                 <p style="color: red; font-weight: bold; font-size: 0.85em; margin-top: 5px; margin-bottom: 0;">@validationError</p>
             }
         </div>
-
-        <!-- 2. OKVIR: LEGENDA ZA PRETRAŽIVANJE (Desno) -->
-        <div style="flex: 1.5; min-width: 350px; padding: 15px; background-color: #e3f2fd; border: 1px solid #90caf9; border-radius: 6px; font-family: monospace; font-size: 0.85em; max-height: 430px; overflow-y: auto;">
-            <h4 style="margin-top: 0; color: #1565c0; font-family: sans-serif;">🔍 Legenda za pretraživanje</h4>
-            <table style="width: 100%; border-collapse: collapse; line-height: 1.4;">
-                <tbody>
-                    <tr><td style="font-weight:bold; width:15%;">DE-</td><td style="width:20%;">(1-11)</td><td>Denacionalizacija</td></tr>
-                    <tr><td style="font-weight:bold;">GR-</td><td>(1-11)</td><td>Gruntovnica-Katastar</td></tr>
-                    <tr><td style="font-weight:bold;">NA-</td><td>(1-11)</td><td>Nacionalizacija</td></tr>
-                    <tr><td style="font-weight:bold;">NP-</td><td>(1-11)</td><td>Nasljedstvo i Pokloni</td></tr>
-                    <tr><td style="font-weight:bold;">UK-</td><td>(1-11)</td><td>Ugovori o Kupnji</td></tr>
-                    <tr><td style="font-weight:bold;">UP-</td><td>(1-11)</td><td>Ugovori o Prodaji</td></tr>
-                    <tr><td style="font-weight:bold;">UZ-</td><td>(1-11)</td><td>Ugovori o Zakupu</td></tr>
-                    <tr><td style="font-weight:bold;">DG-</td><td>(1-15)</td><td>Državna-Gradska uprava</td></tr>
-                    <tr><td style="font-weight:bold;">US-</td><td>(12-15)</td><td>Ugovori ostali</td></tr>
-                    <tr><td style="font-weight:bold;">BK-</td><td>(12-15)</td><td>Banke Osiguravajuća društva</td></tr>
-                    <tr><td style="font-weight:bold;">VP-</td><td>(12-15)</td><td>Vrijednosni papiri (Dionice)</td></tr>
-                    <tr><td style="font-weight:bold;">ID-</td><td>(1-15)</td><td>Interni dokumenti Elaborati</td></tr>
-                    <tr><td colspan="3"><hr style="border: 0; border-top: 1px solid #90caf9; margin: 8px 0;" /></td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-KA-</td><td>(1) Kačićeva</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-KV-</td><td>(2) Kvaternikov trg</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-DE-</td><td>(3) Prilaz Deželića</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-LA-</td><td>(4) Labudovac</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-HE-</td><td>(5) Heinzelova</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-PI-</td><td>(6) Pinezići</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-SL-</td><td>(7) Slavetić</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-ZV-</td><td>(8) Zvonimirova</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-DU-</td><td>(9) Dubrava</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-SD-</td><td>(10) Sveti duh</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-KU-</td><td>(11) Kutina</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-MI-</td><td>(12) Miljenko</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-MA-</td><td>(13) Marija</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-AN-</td><td>(14) Andrej</td></tr>
-                    <tr><td></td><td style="font-weight:bold;">-FA-</td><td>(15) Obitelj</td></tr>
-                </tbody>
-            </table>
-        </div>
-
     </div>
 
     <!-- ALAT ZA IZVOZ U DATOTEKU - VIDLJIV SAMO LOKALNO -->
