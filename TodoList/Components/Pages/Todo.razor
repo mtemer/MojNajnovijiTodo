@@ -57,7 +57,7 @@
     </table>
 </div>
 
-<div style="margin-bottom: 15px; max-width: 400px;">
+<div style="margin-bottom: 16px; max-width: 400px;">
     <input type="text"
            class="form-control"
            placeholder="🔍 Pretraži prema nazivu ili šifri..."
@@ -69,7 +69,6 @@
     @foreach (var todo in FiltriraniTodos)
     {
         <li style="margin-bottom: 8px; list-style-type: none; display: flex; align-items: center;">
-            <input type="checkbox" checked="@todo.IsDone" @onchange="(e) => ToggleDone(todo, e)" disabled style="margin-right: 10px;" />
 
             <span style="margin-left: 10px; font-size: 0.85em; color: #1565c0; background-color: #e3f2fd; font-weight: bold; padding: 2px 6px; border-radius: 4px;">
                 @todo.Sifra
@@ -95,6 +94,8 @@
                     Briši
                 </button>
             }
+
+            <input type="checkbox" checked="@todo.IsDone" @onchange="(e) => ToggleDone(todo, e)" disabled style="margin-right: 10px;" />
 
             <span style="@(todo.IsDone ? "text-decoration: line-through; color: gray;" : "")">
                 @(string.IsNullOrWhiteSpace(todo.Title) ? "(Nema naziva)" : todo.Title)
