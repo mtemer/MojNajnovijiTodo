@@ -56,7 +56,7 @@
         </tbody>
     </table>
 </div>
-
+ga dva slova
 <div style="margin-bottom: 16px; max-width: 400px;">
     <input type="text"
            class="form-control"
@@ -65,7 +65,7 @@
            @bind:event="oninput" />
 </div>
 
-<ul>
+<ul style="padding-left: 0; margin-top: 10px;">
     @foreach (var todo in FiltriraniTodos)
     {
         <li style="margin-bottom: 8px; list-style-type: none; display: flex; align-items: center;">
@@ -178,9 +178,16 @@ else
 
     private IEnumerable<TodoItem> FiltriraniTodos =>
         string.IsNullOrWhiteSpace(searchTerm)
-            ? Enumerable.Empty<TodoItem>() // Ako je polje prazno, vraća se prazan popis
+            ? Enumerable.Empty<TodoItem>()
             : todos.Where(t => (t.Title != null && t.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) ||
-                               (t.Sifra != null && t.Sifra.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)));
+                               (t.Sifra != null && t.Sifra.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)))
+                   // SORTIRANJE:
+                   // 1. Po prva dva slova šifre (npr. BK)
+                   .OrderBy(t => t.Sifra != null && t.Sifra.Length >= 2 ? t.Sifra.Substring(0, 2) : "")
+                   // 2. Po druga dva slova šifre (npr. FA, AN, MA)
+                   .ThenBy(t => t.Sifra != null && t.Sifra.Length >= 5 ? t.Sifra.Substring(3, 2) : "")
+                   // 3. Po datumu u padajućem redoslijedu (najnoviji datumi na vrhu)
+                   .ThenByDescending(t => t.DueDate);
 
     protected override async Task OnInitializedAsync()
     {
@@ -267,6 +274,13 @@ else
         if (string.IsNullOrWhiteSpace(newSifra))
         {
             validationError = "❌ Šifra je obavezna!";
+            return;
+        }
+
+        // NOVA PROVJERA: Datum je obavezan
+        if (!newTodoDueDate.HasValue)
+        {
+            validationError = "❌ Datum je obavezan!";
             return;
         }
 
