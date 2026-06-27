@@ -26,11 +26,4 @@
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
   </ItemGroup>
 
-  <!-- PRISILNO UKLJUČIVANJE BAZE U FINALNI PRODUKT -->
-  <ItemGroup>
-    <Content Include="todonova.db">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-
 </Project>

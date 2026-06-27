@@ -1,7 +1,10 @@
 {
-  "$schema": "https://schema.railpack.com",
+  "$schema": "https://railpack.com",
   "provider": "dotnet",
+  "build": {
+    "buildCommand": "dotnet publish TodoList/TodoList.csproj --no-restore -c Release -o out"
+  },
   "deploy": {
-    "startCommand": "dotnet TodoList.dll"
+    "startCommand": "dotnet out/TodoList.dll"
   }
 }
