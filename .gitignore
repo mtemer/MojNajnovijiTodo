@@ -365,3 +365,6 @@ FodyWeavers.xsd
 !todo.db
 *.db
 *.db-journal
+/podaci JSON.json
+/TodoList/todonova.db
+/TodoList/todonova.db
